@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AEC Delay 弹窗测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        .info_right {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        .btn-light {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .btn-light:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        .instructions {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .instructions h4 {
+            margin-top: 0;
+            color: #fff;
+        }
+        .instructions ol {
+            margin-bottom: 0;
+            color: rgba(255, 255, 255, 0.9);
+        }
+        .feature-list {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .feature-list ul {
+            color: rgba(255, 255, 255, 0.9);
+        }
+        .feature-list li {
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 AEC Delay 弹窗测试页面</h1>
+        
+        <div class="instructions">
+            <h4>📋 测试步骤：</h4>
+            <ol>
+                <li>确保已安装并启用Auto Check插件</li>
+                <li>刷新此页面</li>
+                <li>查看下方info_right区域是否出现"Auto Check"按钮</li>
+                <li>点击"Auto Check"按钮</li>
+                <li>观察是否弹出AEC Delay分析弹窗</li>
+                <li>测试弹窗中的各种功能（导出、刷新等）</li>
+            </ol>
+        </div>
+
+        <div class="info_right">
+            <div class="btn-group">
+                <a href="#" class="btn btn-light btn-sm fetch-log">
+                    Fetch Log
+                </a>
+            </div>
+            
+            <div class="voqa">
+                <div class="btn-group">
+                    <button type="button" class="btn btn-light btn-sm dropdown-toggle" data-toggle="dropdown">
+                        E2E Adv
+                    </button>
+                </div>
+                
+                <div class="btn-group">
+                    <button type="button" class="btn btn-light btn-sm dropdown-toggle" data-toggle="dropdown">
+                        E2E Simple
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="feature-list">
+            <h3>✨ 弹窗功能特性</h3>
+            <ul>
+                <li><strong>即时显示</strong>：点击按钮后立即弹出分析结果，无需跳转</li>
+                <li><strong>美观设计</strong>：现代化的渐变设计和流畅动画效果</li>
+                <li><strong>实时统计</strong>：显示数据点数量、平均延迟、最大延迟</li>
+                <li><strong>交互图表</strong>：支持悬停查看详情、缩放等功能</li>
+                <li><strong>数据导出</strong>：支持导出CSV格式的原始数据</li>
+                <li><strong>数据刷新</strong>：一键生成新的模拟数据进行测试</li>
+                <li><strong>响应式设计</strong>：适配不同屏幕尺寸</li>
+            </ul>
+        </div>
+
+        <div class="instructions">
+            <h4>🔧 调试信息</h4>
+            <p>打开浏览器开发者工具（F12）查看控制台输出：</p>
+            <ul>
+                <li>查看插件注入和按钮创建的日志</li>
+                <li>查看AEC Delay数据生成的日志</li>
+                <li>查看Chart.js库加载状态</li>
+                <li>查看图表创建和渲染的日志</li>
+                <li>查看用户交互操作的日志</li>
+            </ul>
+        </div>
+
+        <div class="feature-list">
+            <h3>🛠️ Chart.js库加载策略</h3>
+            <ul>
+                <li><strong>优先使用指定源</strong>：首先尝试从指定地址加载Chart.js库</li>
+                <li><strong>备用CDN源</strong>：如果指定地址失败，自动尝试多个备用CDN源</li>
+                <li><strong>内置备用图表</strong>：当所有外部源都失败时，使用表格显示模式</li>
+                <li><strong>错误处理</strong>：完善的错误处理和用户友好提示</li>
+                <li><strong>加载日志</strong>：详细的控制台日志显示加载状态和来源</li>
+            </ul>
+        </div>
+
+        <div class="instructions">
+            <h4>📊 Chart.js库信息</h4>
+            <p>当前使用的Chart.js库地址：</p>
+            <code style="background: rgba(255,255,255,0.2); padding: 5px; border-radius: 4px; display: block; margin: 10px 0;">
+                https://arnoldlisenan.oss-cn-hangzhou.aliyuncs.com/Private/js/chart.js
+            </code>
+            <p>版本：Chart.js v4.4.8</p>
+        </div>
+    </div>
+
+    <script>
+        // 页面加载完成后的提示
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('AEC Delay 弹窗测试页面已加载');
+            console.log('等待Auto Check插件注入按钮...');
+            
+            // 检查插件是否已注入按钮
+            setTimeout(() => {
+                const autoCheckBtn = document.querySelector('.auto-check-btn');
+                if (autoCheckBtn) {
+                    console.log('✅ Auto Check按钮已成功注入');
+                } else {
+                    console.log('❌ Auto Check按钮未找到，请检查插件是否正常工作');
+                }
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
