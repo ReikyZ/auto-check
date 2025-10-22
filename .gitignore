@@ -1,3 +1,5 @@
 /test
 .gitignore
 .DS_Store
+test-*
+ui.png

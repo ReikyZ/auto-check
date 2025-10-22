@@ -7,7 +7,8 @@ window.updateIssueStatus = function(issueType, isChecked) {
     window.audioAnalysisIssues = {
       isNoSound: false,
       isLowLevel: false,
-      isEcho: false
+      isEcho: false,
+      isBlack: false
     };
   }
 
@@ -43,10 +44,78 @@ function getIssueDisplayName(issueType) {
   const names = {
     'isNoSound': '无声',
     'isLowLevel': '音量小',
-    'isEcho': '回声'
+    'isEcho': '回声',
+    'isBlack': '黑屏'
   };
   return names[issueType] || issueType;
 }
+
+// 加载指标分析模块
+(function() {
+  console.log('开始加载指标分析模块...');
+
+  // 需要加载的模块列表
+  const modules = [
+    'issue-rules.js',
+    'metrics/metrics-utils.js',
+    'metrics/aec-delay.js',
+    'metrics/signal-level.js',
+    'metrics/record-volume.js',
+    'metrics/error-code.js',
+    'metrics/metrics-manager.js'
+  ];
+
+  let loadedCount = 0;
+
+  // 加载单个模块
+  function loadModule(modulePath) {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = chrome.runtime.getURL(modulePath);
+
+      // 对于 issue-rules.js，使用普通脚本类型，其他模块使用 ES6 模块类型
+      if (modulePath === 'issue-rules.js') {
+        script.type = 'text/javascript';
+      } else {
+        script.type = 'module';
+      }
+
+      script.onload = () => {
+        loadedCount++;
+        console.log(`模块加载完成: ${modulePath} (${loadedCount}/${modules.length})`);
+        resolve();
+      };
+      script.onerror = (error) => {
+        console.error(`模块加载失败: ${modulePath}`, error);
+        reject(error);
+      };
+      document.head.appendChild(script);
+    });
+  }
+
+  // 顺序加载所有模块
+  async function loadAllModules() {
+    try {
+      for (const module of modules) {
+        await loadModule(module);
+      }
+      console.log('所有指标模块加载完成！');
+    } catch (error) {
+      console.error('模块加载过程中出错:', error);
+    }
+  }
+
+  // 开始加载模块
+  loadAllModules();
+})();
+
+// 将 Chart.js 加载函数暴露到全局作用域，供模块使用
+window.loadChartJs = loadChartJs;
+window.loadChartJsFallback = loadChartJsFallback;
+
+// 将组合图表创建函数暴露到全局作用域，供模块使用
+window.createCombinedAudioAnalysisChart = createCombinedAudioAnalysisChart;
+window.createCombinedFallbackChart = createCombinedFallbackChart;
 
 // 测试函数是否可用
 window.testUpdateIssueStatus = function() {
@@ -154,13 +223,21 @@ function loadIssueRules() {
       resolve();
       return;
     }
-    
+
     // 动态加载规则表文件
     const script = document.createElement('script');
     script.src = chrome.runtime.getURL('issue-rules.js');
     script.onload = () => {
       console.log('问题类型规则表已加载');
-      resolve();
+      // 检查是否成功加载了规则表函数
+      if (typeof getMetricIssueTypes !== 'undefined') {
+        console.log('外部规则表加载成功');
+        resolve();
+      } else {
+        console.warn('外部规则表加载但函数未定义，使用内联备用方案');
+        loadInlineIssueRules();
+        resolve();
+      }
     };
     script.onerror = () => {
       console.error('加载问题类型规则表失败，使用内联备用方案');
@@ -175,43 +252,62 @@ function loadIssueRules() {
 // 内联备用规则表
 function loadInlineIssueRules() {
   console.log('加载内联问题类型规则表');
-  
-  // 内联规则表定义
+
+  // 只有当外部规则表完全没有加载时才使用内联版本
+  if (typeof window.ISSUE_RULES !== 'undefined' && typeof window.getMetricIssueTypes === 'function') {
+    console.log('外部规则表已存在，跳过内联版本');
+    return;
+  }
+
+  console.log('使用内联备用规则表');
+
+  // 内联规则表定义（仅当外部规则表不存在时才定义）
+  if (typeof window.ISSUE_RULES === 'undefined') {
   window.ISSUE_RULES = {
     issueTypes: {
       isNoSound: { name: '无声', color: '#ff6b6b', icon: '🔇' },
       isLowLevel: { name: '音量小', color: '#ffa726', icon: '🔉' },
-      isEcho: { name: '回声', color: '#f44336', icon: '🔊' }
+      isEcho: { name: '回声', color: '#f44336', icon: '🔊' },
+      isBlack: { name: '黑屏', color: '#000000', icon: '🖤' }
     },
     metricIssueRules: {
-      'Audio AEC Delay': { isNoSound: 0, isLowLevel: 0, isEcho: 1 },
-      'Audio Signal Level Nearin': { isNoSound: 1, isLowLevel: 1, isEcho: 0 },
-      'A RECORD SIGNAL VOLUME': { isNoSound: 1, isLowLevel: 1, isEcho: 0 },
-      'Chat Engine Error Code': { isNoSound: 1, isLowLevel: 1, isEcho: 1 }
+      'Audio AEC Delay': { isNoSound: 0, isLowLevel: 0, isEcho: 1, isBlack: 0 },
+      'Audio Signal Level Nearin': { isNoSound: 1, isLowLevel: 1, isEcho: 0, isBlack: 0 },
+      'A RECORD SIGNAL VOLUME': { isNoSound: 1, isLowLevel: 1, isEcho: 0, isBlack: 0 },
+      'Chat Engine Error Code': { isNoSound: 1, isLowLevel: 1, isEcho: 1, isBlack: 1 }
     }
   };
-  
-  // 内联函数定义
-  window.getMetricIssueTypes = function(metricName) {
-    return window.ISSUE_RULES.metricIssueRules[metricName] || { isNoSound: 0, isLowLevel: 0, isEcho: 0 };
-  };
-  
-  window.getIssueTypeConfig = function(issueType) {
-    return window.ISSUE_RULES.issueTypes[issueType];
-  };
-  
-  window.isMetricRelatedToIssue = function(metricName, issueType) {
-    const rules = window.getMetricIssueTypes(metricName);
-    return rules[issueType] === 1;
-  };
-  
-  window.extractMetricNameFromTitle = function(titleText) {
-    if (titleText.includes('AEC Delay')) return 'Audio AEC Delay';
-    if (titleText.includes('Signal Level')) return 'Audio Signal Level Nearin';
-    if (titleText.includes('Record Volume')) return 'A RECORD SIGNAL VOLUME';
-    if (titleText.includes('Error Code')) return 'Chat Engine Error Code';
-    return null;
-  };
+  }
+
+  // 内联函数定义（仅当外部函数不存在时才定义）
+  if (typeof window.getMetricIssueTypes !== 'function') {
+    window.getMetricIssueTypes = function(metricName) {
+      return window.ISSUE_RULES.metricIssueRules[metricName] || { isNoSound: 0, isLowLevel: 0, isEcho: 0, isBlack: 0 };
+    };
+  }
+
+  if (typeof window.getIssueTypeConfig !== 'function') {
+    window.getIssueTypeConfig = function(issueType) {
+      return window.ISSUE_RULES.issueTypes[issueType];
+    };
+  }
+
+  if (typeof window.isMetricRelatedToIssue !== 'function') {
+    window.isMetricRelatedToIssue = function(metricName, issueType) {
+      const rules = window.getMetricIssueTypes(metricName);
+      return rules[issueType] === 1;
+    };
+  }
+
+  if (typeof window.extractMetricNameFromTitle !== 'function') {
+    window.extractMetricNameFromTitle = function(titleText) {
+      if (titleText.includes('AEC Delay')) return 'Audio AEC Delay';
+      if (titleText.includes('Signal Level')) return 'Audio Signal Level Nearin';
+      if (titleText.includes('Record Volume')) return 'A RECORD SIGNAL VOLUME';
+      if (titleText.includes('Error Code')) return 'Chat Engine Error Code';
+      return null;
+    };
+  }
 }
 
 // 等待页面加载完成
@@ -1634,7 +1730,7 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
     chartContainer.className = 'combined-audio-analysis-container';
     chartContainer.innerHTML = `
       <div class="chart-header">
-        <h3>📊 音频分析 - AEC Delay, Signal Level & Record Volume</h3>
+        <h3> 🎯🎯🎯 分析</h3>
         <button class="close-chart" onclick="this.parentElement.parentElement.remove()">×</button>
       </div>
       <div class="chart-content">
@@ -1651,6 +1747,10 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
             <label class="checkbox-item">
               <input type="checkbox" id="isEcho" data-issue-type="isEcho">
               <span class="checkbox-label">回声</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" id="isBlack" data-issue-type="isBlack">
+              <span class="checkbox-label">黑屏</span>
             </label>
           </div>
         </div>
@@ -1941,7 +2041,17 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
         color: #ff9800;
         border-bottom-color: #ff9800;
       }
-      
+
+      .combined-audio-analysis-container .metric-row:nth-child(5) .metric-data-section {
+        background: linear-gradient(135deg, #f8f8f8 0%, #e8e8e8 100%);
+        border-right-color: #000000;
+      }
+
+      .combined-audio-analysis-container .metric-row:nth-child(5) .metric-data-section h4 {
+        color: #000000;
+        border-bottom-color: #000000;
+      }
+
       /* 响应式设计 */
       @media (max-width: 768px) {
         .combined-audio-analysis-container .metric-row {
@@ -1968,6 +2078,10 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
         
         .combined-audio-analysis-container .metric-row:nth-child(4) .metric-data-section {
           border-bottom-color: #ff9800;
+        }
+
+        .combined-audio-analysis-container .metric-row:nth-child(5) .metric-data-section {
+          border-bottom-color: #000000;
         }
       }
       
@@ -2349,6 +2463,12 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
     chartFooter.style.display = 'none';
   }
   
+  // 初始化时隐藏所有指标行（metric-row）
+  const metricRows = chartContainer.querySelectorAll('.metric-row');
+  metricRows.forEach(row => {
+    row.style.display = 'none';
+  });
+  
   // 显示选择提示
   showSelectionPrompt();
 
@@ -2379,6 +2499,8 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
   window.updateChartBasedOnIssues = function() {
     const issues = window.audioAnalysisIssues || {};
     
+    console.log('🔄 updateChartBasedOnIssues 被调用，当前状态:', issues);
+    
     // 更新图表标题以反映问题状态
     updateChartTitle(issues);
     
@@ -2388,10 +2510,16 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
     // 更新统计信息显示
     updateStatisticsDisplay(issues);
     
-    // 初始化时检查是否需要显示选择提示
+    // 检查是否需要显示选择提示
     const hasActiveIssues = Object.values(issues).some(checked => checked);
+    console.log('📊 是否有激活的问题:', hasActiveIssues);
+    
     if (!hasActiveIssues) {
+      console.log('✅ 没有勾选任何问题，显示选择提示');
       showSelectionPrompt();
+    } else {
+      console.log('✅ 有勾选问题，隐藏选择提示');
+      hideSelectionPrompt();
     }
   };
   
@@ -2409,7 +2537,7 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
         title += ` (问题: ${activeIssues.join(', ')})`;
       }
       
-      header.textContent = title;
+      header.textContent = "🎯🎯🎯 分析";
     }
   }
   
@@ -2433,94 +2561,6 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
     // }
   }
   
-  // 更新统计信息显示
-  function updateStatisticsDisplay(issues) {
-    // 根据问题类型规则智能高亮相关指标
-    const metricRows = document.querySelectorAll('.metric-row');
-    
-    // 检查是否有任何问题被勾选
-    const hasActiveIssues = Object.values(issues).some(checked => checked);
-    
-    // 调试信息
-    console.log('更新统计信息显示:', {
-      issues: issues,
-      hasActiveIssues: hasActiveIssues,
-      metricRowsCount: metricRows.length
-    });
-    
-    metricRows.forEach(metricRow => {
-      // 获取 metric 名称
-      const metricName = metricRow.dataset.metric;
-      if (!metricName) return;
-      
-      let shouldHighlight = false;
-      let highlightColor = '#667eea';
-      let highlightBackground = 'white';
-      let shouldShow = true; // 默认显示所有指标
-      
-      // 如果有问题被勾选，只显示相关指标
-      if (hasActiveIssues) {
-        shouldShow = false;
-        
-        // 检查当前指标是否与任何勾选的问题类型相关
-        Object.keys(issues).forEach(issueType => {
-          if (issues[issueType]) {
-            // 确保规则表函数可用
-            if (typeof getIssueTypeConfig === 'function' && typeof isMetricRelatedToIssue === 'function') {
-              const issueConfig = getIssueTypeConfig(issueType);
-              if (issueConfig) {
-                const isRelated = isMetricRelatedToIssue(metricName, issueType);
-                
-                // 调试信息
-                console.log(`指标匹配检查:`, {
-                  metricName: metricName,
-                  issueType: issueType,
-                  isRelated: isRelated
-                });
-                
-                if (isRelated) {
-                  shouldShow = true;
-                  shouldHighlight = true;
-                  highlightColor = issueConfig.color;
-                  highlightBackground = issueConfig.color + '15'; // 添加透明度
-                }
-              }
-            }
-          }
-        });
-      }
-      
-      // 控制显示/隐藏
-      if (shouldShow) {
-        metricRow.style.display = 'flex';
-        metricRow.style.opacity = '1';
-        metricRow.style.transform = 'scale(1)';
-      } else {
-        metricRow.style.display = 'none';
-      }
-      
-      // 应用高亮样式
-      if (shouldHighlight) {
-        metricRow.style.border = `2px solid ${highlightColor}`;
-        metricRow.style.background = highlightBackground;
-        metricRow.style.boxShadow = `0 2px 8px ${highlightColor}30`;
-      } else {
-        metricRow.style.border = '1px solid #e9ecef';
-        metricRow.style.background = 'white';
-        metricRow.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
-      }
-    });
-    
-    // 更新显示状态提示
-    updateDisplayStatusMessage(issues, hasActiveIssues);
-    
-    // 如果没有勾选任何问题，显示选择提示
-    if (!hasActiveIssues) {
-      showSelectionPrompt();
-    } else {
-      hideSelectionPrompt();
-    }
-  }
   
   window.switchTab = (tabName) => {
     // 切换标签页
@@ -2603,317 +2643,6 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
   };
 
   showNotification('组合音频分析图表已生成', 'success');
-}
-
-// 创建AEC Delay图表
-function createAecDelayChart(aecDelayData) {
-  // 1) 容器与画布：若不存在则创建，存在则复用
-  let chartContainer = document.querySelector('.aec-delay-chart-container');
-  if (!chartContainer) {
-    chartContainer = document.createElement('div');
-    chartContainer.className = 'aec-delay-chart-container';
-    chartContainer.innerHTML = `
-      <div class="chart-header">
-        <h3>📊 Audio AEC Delay 分析</h3>
-        <button class="close-chart" onclick="this.parentElement.parentElement.remove()">×</button>
-      </div>
-      <div class="chart-content">
-        <canvas id="aecDelayChart" width="600" height="300"></canvas>
-      </div>
-      <div class="chart-footer">
-        <div class="chart-stats">
-          <div class="stat-item">
-            <span class="stat-label">数据点</span>
-            <span class="stat-value">${aecDelayData.data.length}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">平均延迟</span>
-            <span class="stat-value">${calculateAverageDelay(aecDelayData.data)}ms</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">最大延迟</span>
-            <span class="stat-value">${calculateMaxDelay(aecDelayData.data)}ms</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">变化次数</span>
-            <span class="stat-value">${calculateChangeCount(aecDelayData.data)}</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">变化频率</span>
-            <span class="stat-value">${calculateChangeFrequency(aecDelayData.data)}</span>
-          </div>
-        </div>
-      </div>
-    `;
-    chartContainer.style.cssText = `
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 80%;
-      max-width: 700px;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
-      z-index: 10001;
-      overflow: hidden;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      animation: slideIn 0.3s ease-out;
-    `;
-    document.body.appendChild(chartContainer);
-  } else {
-    // 更新统计显示
-    updateChartStats(aecDelayData.data);
-  }
-
-  const canvas = document.getElementById('aecDelayChart');
-  if (!canvas) {
-    showNotification('未找到图表画布', 'error');
-    return;
-  }
-
-  // 2) 准备折线图数据
-  const prepared = prepareChartData(aecDelayData.data);
-
-  // 3) 若已存在实例则更新；否则新建折线图
-  if (window.aecDelayChartInstance) {
-    window.aecDelayChartInstance.data.labels = prepared.labels;
-    window.aecDelayChartInstance.data.datasets[0].data = prepared.values;
-    window.aecDelayChartInstance.update('none');
-  } else {
-    window.aecDelayChartInstance = new Chart(canvas.getContext('2d'), {
-      type: 'line',
-      data: {
-        labels: prepared.labels,
-        datasets: [{
-          label: 'AEC Delay (ms)',
-          data: prepared.values,
-          borderColor: '#667eea',
-          backgroundColor: 'rgba(102, 126, 234, 0.1)',
-          borderWidth: 2,
-          fill: true,
-          tension: 0.3,
-          pointRadius: 2,
-          pointHoverRadius: 5,
-          pointBackgroundColor: '#667eea',
-          pointBorderColor: '#ffffff',
-          pointBorderWidth: 1
-        }]
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: false,
-        plugins: {
-          legend: { display: true, position: 'top' },
-          title: { display: true, text: 'Audio AEC Delay 时间序列' },
-          tooltip: {
-            mode: 'index',
-            intersect: false,
-            callbacks: {
-              title: function(context) {
-                const i = context[0].dataIndex;
-                const ts = aecDelayData.data[i].timestamp;
-                return new Date(ts).toLocaleString();
-              },
-              label: function(context) {
-                return `Delay: ${context.parsed.y}ms`;
-              }
-            }
-          },
-          // 如果版本支持，启用抽稀
-          decimation: { enabled: true, algorithm: 'lttb', samples: 200 }
-        },
-        scales: {
-          x: {
-            display: true,
-            title: { display: true, text: '时间' },
-            ticks: {
-              autoSkip: true,
-              maxTicksLimit: 10
-            }
-          },
-          y: {
-            display: true,
-            title: { display: true, text: 'Delay (ms)' },
-            beginAtZero: true,
-            grid: { color: 'rgba(0, 0, 0, 0.1)' }
-          }
-        },
-        interaction: { mode: 'nearest', axis: 'x', intersect: false }
-      }
-    });
-  }
-
-  // 4) 导出与刷新
-  window.exportChartData = () => {
-    const csvData = aecDelayData.data.map(point => 
-      `${new Date(point.timestamp).toISOString()},${point.value}`
-    ).join('\n');
-    const csvContent = '时间戳,延迟值(ms)\n' + csvData;
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `aec-delay-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-    showNotification('AEC Delay数据已导出', 'success');
-  };
-
-  window.refreshChart = () => {
-    const newData = generateMockAecDelayData();
-    const preparedNew = prepareChartData(newData.data);
-    if (window.aecDelayChartInstance) {
-      window.aecDelayChartInstance.data.labels = preparedNew.labels;
-      window.aecDelayChartInstance.data.datasets[0].data = preparedNew.values;
-      window.aecDelayChartInstance.update('none');
-    }
-    updateChartStats(newData.data);
-    showNotification('数据已刷新', 'success');
-  };
-
-  showNotification('AEC Delay曲线图已生成', 'success');
-}
-
-// 创建 Signal Level 图表
-function createSignalLevelChart(signalLevelData) {
-  const canvas = document.getElementById('signalLevelChart');
-  if (!canvas) return;
-
-  const prepared = prepareChartData(signalLevelData.data);
-  
-  if (window.signalLevelChartInstance) {
-    window.signalLevelChartInstance.destroy();
-  }
-  
-  window.signalLevelChartInstance = new Chart(canvas.getContext('2d'), {
-    type: 'line',
-    data: {
-      labels: prepared.labels,
-      datasets: [{
-        label: 'Signal Level',
-        data: prepared.values,
-        borderColor: '#ff6b6b',
-        backgroundColor: 'rgba(255, 107, 107, 0.1)',
-        borderWidth: 2,
-        fill: true,
-        tension: 0.3,
-        pointRadius: 2,
-        pointHoverRadius: 5,
-        pointBackgroundColor: '#ff6b6b',
-        pointBorderColor: '#ffffff',
-        pointBorderWidth: 1
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: false,
-      plugins: {
-        legend: { display: true, position: 'top' },
-        title: { display: true, text: 'Audio Signal Level Nearin 时间序列' },
-        tooltip: {
-          mode: 'index',
-          intersect: false,
-          callbacks: {
-            title: function(context) {
-              const i = context[0].dataIndex;
-              const ts = signalLevelData.data[i].timestamp;
-              return new Date(ts).toLocaleString();
-            },
-            label: function(context) {
-              return `Signal Level: ${context.parsed.y}`;
-            }
-          }
-        }
-      },
-      scales: {
-        x: {
-          display: true,
-          title: { display: true, text: '时间' },
-          ticks: { autoSkip: true, maxTicksLimit: 10 }
-        },
-        y: {
-          display: true,
-          title: { display: true, text: 'Signal Level' },
-          beginAtZero: true,
-          grid: { color: 'rgba(0, 0, 0, 0.1)' }
-        }
-      },
-      interaction: { mode: 'nearest', axis: 'x', intersect: false }
-    }
-  });
-}
-
-// 创建 Record Volume 图表
-function createRecordVolumeChart(recordSignalVolumeData) {
-  const canvas = document.getElementById('recordVolumeChart');
-  if (!canvas) return;
-
-  const prepared = prepareChartData(recordSignalVolumeData.data);
-  
-  if (window.recordVolumeChartInstance) {
-    window.recordVolumeChartInstance.destroy();
-  }
-  
-  window.recordVolumeChartInstance = new Chart(canvas.getContext('2d'), {
-    type: 'line',
-    data: {
-      labels: prepared.labels,
-      datasets: [{
-        label: 'Record Volume',
-        data: prepared.values,
-        borderColor: '#4ecdc4',
-        backgroundColor: 'rgba(78, 205, 196, 0.1)',
-        borderWidth: 2,
-        fill: true,
-        tension: 0.3,
-        pointRadius: 2,
-        pointHoverRadius: 5,
-        pointBackgroundColor: '#4ecdc4',
-        pointBorderColor: '#ffffff',
-        pointBorderWidth: 1
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: false,
-      plugins: {
-        legend: { display: true, position: 'top' },
-        title: { display: true, text: 'A Record Signal Volume 时间序列' },
-        tooltip: {
-          mode: 'index',
-          intersect: false,
-          callbacks: {
-            title: function(context) {
-              const i = context[0].dataIndex;
-              const ts = recordSignalVolumeData.data[i].timestamp;
-              return new Date(ts).toLocaleString();
-            },
-            label: function(context) {
-              return `Record Volume: ${context.parsed.y}`;
-            }
-          }
-        }
-      },
-      scales: {
-        x: {
-          display: true,
-          title: { display: true, text: '时间' },
-          ticks: { autoSkip: true, maxTicksLimit: 10 }
-        },
-        y: {
-          display: true,
-          title: { display: true, text: 'Record Volume' },
-          beginAtZero: true,
-          grid: { color: 'rgba(0, 0, 0, 0.1)' }
-        }
-      },
-      interaction: { mode: 'nearest', axis: 'x', intersect: false }
-    }
-  });
 }
 
 // 创建组合图表
@@ -3293,7 +3022,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
   chartContainer.className = 'combined-audio-analysis-container fallback-chart';
   chartContainer.innerHTML = `
     <div class="chart-header">
-      <h3>📊 音频分析 - AEC Delay, Signal Level & Record Volume</h3>
+      <h3> 🎯🎯🎯 分析</h3>
       <button class="close-chart" onclick="this.parentElement.parentElement.remove()">×</button>
     </div>
     <div class="chart-content">
@@ -3310,6 +3039,10 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
           <label class="checkbox-item">
             <input type="checkbox" id="isEcho" data-issue-type="isEcho">
             <span class="checkbox-label">回声</span>
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" id="isBlack" data-issue-type="isBlack">
+            <span class="checkbox-label">黑屏</span>
           </label>
         </div>
       </div>
@@ -3643,7 +3376,17 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
         color: #ff9800;
         border-bottom-color: #ff9800;
       }
-      
+
+      .combined-audio-analysis-container .metric-row:nth-child(5) .metric-data-section {
+        background: linear-gradient(135deg, #f8f8f8 0%, #e8e8e8 100%);
+        border-right-color: #000000;
+      }
+
+      .combined-audio-analysis-container .metric-row:nth-child(5) .metric-data-section h4 {
+        color: #000000;
+        border-bottom-color: #000000;
+      }
+
       /* 响应式设计 */
       @media (max-width: 768px) {
         .combined-audio-analysis-container .metric-row {
@@ -3670,6 +3413,10 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
         
         .combined-audio-analysis-container .metric-row:nth-child(4) .metric-data-section {
           border-bottom-color: #ff9800;
+        }
+
+        .combined-audio-analysis-container .metric-row:nth-child(5) .metric-data-section {
+          border-bottom-color: #000000;
         }
       }
       
@@ -4046,7 +3793,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
     createDataTable(errorCodeData.data, 'errorCodeDataTable');
   }
   
-  // 初始化时隐藏所有指标行，显示选择提示
+  // 初始化时隐藏所有指标行（metric-row）
   const metricRows = chartContainer.querySelectorAll('.metric-row');
   metricRows.forEach(row => {
     row.style.display = 'none';
@@ -4082,6 +3829,8 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
   window.updateChartBasedOnIssues = function() {
     const issues = window.audioAnalysisIssues || {};
     
+    console.log('🔄 updateChartBasedOnIssues 被调用，当前状态:', issues);
+    
     // 更新图表标题以反映问题状态
     updateChartTitle(issues);
     
@@ -4091,10 +3840,16 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
     // 更新统计信息显示
     updateStatisticsDisplay(issues);
     
-    // 初始化时检查是否需要显示选择提示
+    // 检查是否需要显示选择提示
     const hasActiveIssues = Object.values(issues).some(checked => checked);
+    console.log('📊 是否有激活的问题:', hasActiveIssues);
+    
     if (!hasActiveIssues) {
+      console.log('✅ 没有勾选任何问题，显示选择提示');
       showSelectionPrompt();
+    } else {
+      console.log('✅ 有勾选问题，隐藏选择提示');
+      hideSelectionPrompt();
     }
   };
   
@@ -4112,7 +3867,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
         title += ` (问题: ${activeIssues.join(', ')})`;
       }
       
-      header.textContent = title;
+      header.textContent = "🎯🎯🎯 分析";
     }
   }
   
@@ -4159,35 +3914,46 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
       let shouldHighlight = false;
       let highlightColor = '#667eea';
       let highlightBackground = 'white';
-      let shouldShow = true; // 默认显示所有指标
+      let shouldShow = false; // 默认隐藏所有指标
       
       // 如果有问题被勾选，只显示相关指标
       if (hasActiveIssues) {
-        shouldShow = false;
+        shouldShow = false; // 初始设为 false，只有匹配的问题类型才设为 true
         
         // 检查当前指标是否与任何勾选的问题类型相关
         Object.keys(issues).forEach(issueType => {
           if (issues[issueType]) {
             // 确保规则表函数可用
             if (typeof getIssueTypeConfig === 'function' && typeof isMetricRelatedToIssue === 'function') {
-              const issueConfig = getIssueTypeConfig(issueType);
-              if (issueConfig) {
-                const isRelated = isMetricRelatedToIssue(metricName, issueType);
-                
-                // 调试信息
-                console.log(`指标匹配检查:`, {
-                  metricName: metricName,
-                  issueType: issueType,
-                  isRelated: isRelated
-                });
-                
-                if (isRelated) {
-                  shouldShow = true;
-                  shouldHighlight = true;
-                  highlightColor = issueConfig.color;
-                  highlightBackground = issueConfig.color + '15'; // 添加透明度
+              try {
+                const issueConfig = getIssueTypeConfig(issueType);
+                if (issueConfig) {
+                  const isRelated = isMetricRelatedToIssue(metricName, issueType);
+
+                  // 调试信息
+                  console.log(`指标匹配检查:`, {
+                    metricName: metricName,
+                    issueType: issueType,
+                    isRelated: isRelated,
+                    issueConfig: issueConfig
+                  });
+
+                  if (isRelated) {
+                    shouldShow = true;
+                    shouldHighlight = true;
+                    highlightColor = issueConfig.color;
+                    highlightBackground = issueConfig.color + '15'; // 添加透明度
+                  }
                 }
+              } catch (error) {
+                console.warn('规则表函数调用出错:', error);
+                // 如果规则表函数出错，不显示指标（避免显示不相关内容）
+                shouldShow = false;
               }
+            } else {
+              console.warn('规则表函数不可用，使用默认显示逻辑');
+              // 如果规则表函数不可用，不显示指标（避免显示不相关内容）
+              shouldShow = false;
             }
           }
         });
@@ -4195,11 +3961,16 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
       
       // 控制显示/隐藏
       if (shouldShow) {
+        console.log('指标显示:', metricName);
         metricRow.style.display = 'flex';
         metricRow.style.opacity = '1';
         metricRow.style.transform = 'scale(1)';
       } else {
+        // 为什么不显示没生效
+        // 注意：有些情况下，flex container 的子项 display:none 设置可能因外层/父层样式冲突或渲染机制被覆盖，需要增加!important提升优先级
+        console.log('指标不显示:', metricName);
         metricRow.style.display = 'none';
+        metricRow.style.setProperty('display', 'none', 'important');
       }
       
       // 应用高亮样式
@@ -4273,17 +4044,15 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
   
   // 显示选择问题类型提示
   function showSelectionPrompt() {
-    // 隐藏所有指标行（备用图表）
-    const metricRows = document.querySelectorAll('.metric-row');
-    metricRows.forEach(row => {
-      row.style.display = 'none';
-    });
-    
     // 隐藏统计信息区域（主图表）
     const chartFooters = document.querySelectorAll('.chart-footer');
     chartFooters.forEach(footer => {
       footer.style.display = 'none';
     });
+
+    // 注意：不要在这里隐藏所有指标行
+    // 指标行的显示应该由 updateStatisticsDisplay() 函数根据 shouldShow 逻辑控制
+    // 当没有勾选任何问题时，updateStatisticsDisplay() 会确保正确显示所有指标
     
     // 创建或显示选择提示
     let promptElement = document.querySelector('.selection-prompt');
@@ -4332,6 +4101,16 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
     if (promptElement) {
       promptElement.style.display = 'none';
     }
+
+    // 恢复统计信息区域的显示
+    const chartFooters = document.querySelectorAll('.chart-footer');
+    chartFooters.forEach(footer => {
+      footer.style.display = 'block';
+    });
+
+    // 注意：不要在这里恢复所有指标行的显示
+    // 指标行的显示应该由 updateStatisticsDisplay() 函数根据 shouldShow 逻辑控制
+    // 直接设置 display: block 会覆盖 updateStatisticsDisplay() 的判断逻辑
   }
   
   // 从标题中提取指标名称

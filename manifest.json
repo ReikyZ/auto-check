@@ -35,7 +35,9 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "libs/chart.umd.js"
+        "libs/chart.umd.js",
+        "metrics/*.js",
+        "issue-rules.js"
       ],
       "matches": [
         "<all_urls>"

@@ -3,6 +3,8 @@
  * 用于管理指标与问题类型的关联关系
  */
 
+// 注意：全局暴露将在 ISSUE_RULES 定义后进行
+
 // 问题类型规则管理系统
 const ISSUE_RULES = {
   // 问题类型定义
@@ -24,6 +26,12 @@ const ISSUE_RULES = {
       description: '音频回声或延迟问题',
       color: '#f44336',
       icon: '🔊'
+    },
+    isBlack: {
+      name: '黑屏',
+      description: '视频画面显示异常或黑屏',
+      color: '#000000',
+      icon: '🖤'
     }
   },
   
@@ -32,22 +40,26 @@ const ISSUE_RULES = {
     'Audio AEC Delay': {
       isNoSound: 0,
       isLowLevel: 0,
-      isEcho: 1
+      isEcho: 1,
+      isBlack: 0
     },
     'Audio Signal Level Nearin': {
       isNoSound: 1,
       isLowLevel: 1,
-      isEcho: 0
+      isEcho: 0,
+      isBlack: 0
     },
     'A RECORD SIGNAL VOLUME': {
       isNoSound: 1,
       isLowLevel: 1,
-      isEcho: 0
+      isEcho: 0,
+      isBlack: 0
     },
     'Chat Engine Error Code': {
       isNoSound: 1,
       isLowLevel: 1,
-      isEcho: 1
+      isEcho: 1,
+      isBlack: 1
     }
   }
 };
@@ -61,7 +73,8 @@ function getMetricIssueTypes(metricName) {
   return ISSUE_RULES.metricIssueRules[metricName] || {
     isNoSound: 0,
     isLowLevel: 0,
-    isEcho: 0
+    isEcho: 0,
+    isBlack: 0
   };
 }
 
@@ -273,4 +286,22 @@ if (typeof module !== 'undefined' && module.exports) {
     getRulesStatistics,
     IssueRulesDebug
   };
+}
+
+// 将函数暴露到全局作用域（浏览器环境）
+if (typeof window !== 'undefined') {
+  // 将所有函数暴露到全局作用域
+  window.ISSUE_RULES = ISSUE_RULES;
+  window.getMetricIssueTypes = getMetricIssueTypes;
+  window.getIssueTypeConfig = getIssueTypeConfig;
+  window.isMetricRelatedToIssue = isMetricRelatedToIssue;
+  window.getMetricsForIssueType = getMetricsForIssueType;
+  window.getAllIssueTypes = getAllIssueTypes;
+  window.generateIssueRulesTable = generateIssueRulesTable;
+  window.extractMetricNameFromTitle = extractMetricNameFromTitle;
+  window.addIssueType = addIssueType;
+  window.addMetricRule = addMetricRule;
+  window.updateMetricRule = updateMetricRule;
+  window.getRulesStatistics = getRulesStatistics;
+  window.IssueRulesDebug = IssueRulesDebug;
 }
