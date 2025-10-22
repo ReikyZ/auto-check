@@ -1,3 +1,69 @@
+// 全局函数定义 - 确保在任何其他代码之前定义
+window.updateIssueStatus = function(issueType, isChecked) {
+  console.log('updateIssueStatus called:', issueType, isChecked);
+
+  // 初始化全局状态对象
+  if (!window.audioAnalysisIssues) {
+    window.audioAnalysisIssues = {
+      isNoSound: false,
+      isLowLevel: false,
+      isEcho: false
+    };
+  }
+
+  // 更新状态
+  window.audioAnalysisIssues[issueType] = isChecked;
+
+  // 显示调试信息
+  console.log('Updated issue status:', window.audioAnalysisIssues);
+
+  // 尝试更新图表显示（安全调用）
+  try {
+    if (typeof updateChartBasedOnIssues === 'function') {
+      updateChartBasedOnIssues();
+    }
+  } catch (e) {
+    console.warn('updateChartBasedOnIssues not available yet:', e);
+  }
+
+  // 显示通知（安全调用）
+  try {
+    if (typeof showNotification === 'function') {
+      const issueName = getIssueDisplayName(issueType);
+      const statusText = isChecked ? '已标记' : '已取消';
+      showNotification(`${issueName} ${statusText}`, 'info');
+    }
+  } catch (e) {
+    console.warn('showNotification not available yet:', e);
+  }
+};
+
+// 获取问题显示名称
+function getIssueDisplayName(issueType) {
+  const names = {
+    'isNoSound': '无声',
+    'isLowLevel': '音量小',
+    'isEcho': '回声'
+  };
+  return names[issueType] || issueType;
+}
+
+// 测试函数是否可用
+window.testUpdateIssueStatus = function() {
+  console.log('测试 updateIssueStatus 函数是否可用:', typeof window.updateIssueStatus);
+  console.log('window 对象:', typeof window);
+  console.log('updateIssueStatus 属性:', window.updateIssueStatus);
+
+  if (typeof window.updateIssueStatus === 'function') {
+    console.log('✅ updateIssueStatus 函数可用');
+    // 测试调用
+    window.updateIssueStatus('isNoSound', true);
+  } else {
+    console.log('❌ updateIssueStatus 函数不可用');
+    console.log('当前 window.updateIssueStatus 值:', window.updateIssueStatus);
+  }
+};
+
 // 指标配置系统
 const AUDIO_METRICS_CONFIG = {
   'AEC_DELAY': {
@@ -9,7 +75,12 @@ const AUDIO_METRICS_CONFIG = {
     borderColor: '#667eea',
     icon: '📊',
     unit: 'ms',
-    description: '音频回声消除延迟'
+    description: '音频回声消除延迟',
+    issueTypes: {
+      isNoSound: 0,
+      isLowLevel: 0,
+      isEcho: 1
+    }
   },
   'SIGNAL_LEVEL': {
     name: 'Audio Signal Level Nearin',
@@ -20,7 +91,12 @@ const AUDIO_METRICS_CONFIG = {
     borderColor: '#ff6b6b',
     icon: '📈',
     unit: '',
-    description: '音频信号级别'
+    description: '音频信号级别',
+    issueTypes: {
+      isNoSound: 1,
+      isLowLevel: 1,
+      isEcho: 0
+    }
   },
   'RECORD_VOLUME': {
     name: 'A RECORD SIGNAL VOLUME',
@@ -31,9 +107,31 @@ const AUDIO_METRICS_CONFIG = {
     borderColor: '#4ecdc4',
     icon: '🎵',
     unit: '',
-    description: '录音信号音量'
+    description: '录音信号音量',
+    issueTypes: {
+      isNoSound: 1,
+      isLowLevel: 1,
+      isEcho: 0
+    }
+  },
+  'CHAT_ENGINE_ERROR': {
+    name: 'Chat Engine Error Code',
+    displayName: '🚨 Chat Engine Error Code 统计',
+    counterId: 0,
+    color: '#ff9800',
+    backgroundColor: 'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)',
+    borderColor: '#ff9800',
+    icon: '🚨',
+    unit: '',
+    description: '聊天引擎错误代码',
+    issueTypes: {
+      isNoSound: 1,
+      isLowLevel: 1,
+      isEcho: 1
+    }
   }
 };
+
 
 // 获取所有指标配置
 function getAllMetricsConfig() {
@@ -45,6 +143,75 @@ function getMetricConfig(metricName) {
   return Object.values(AUDIO_METRICS_CONFIG).find(config => 
     config.name === metricName || config.name.toUpperCase() === metricName.toUpperCase()
   );
+}
+
+// 问题类型规则管理系统已移至独立的 issue-rules.js 文件
+// 动态加载规则表文件
+function loadIssueRules() {
+  return new Promise((resolve, reject) => {
+    if (typeof getMetricIssueTypes !== 'undefined') {
+      // 如果规则表函数已存在，直接返回
+      resolve();
+      return;
+    }
+    
+    // 动态加载规则表文件
+    const script = document.createElement('script');
+    script.src = chrome.runtime.getURL('issue-rules.js');
+    script.onload = () => {
+      console.log('问题类型规则表已加载');
+      resolve();
+    };
+    script.onerror = () => {
+      console.error('加载问题类型规则表失败，使用内联备用方案');
+      // 使用内联备用方案
+      loadInlineIssueRules();
+      resolve();
+    };
+    document.head.appendChild(script);
+  });
+}
+
+// 内联备用规则表
+function loadInlineIssueRules() {
+  console.log('加载内联问题类型规则表');
+  
+  // 内联规则表定义
+  window.ISSUE_RULES = {
+    issueTypes: {
+      isNoSound: { name: '无声', color: '#ff6b6b', icon: '🔇' },
+      isLowLevel: { name: '音量小', color: '#ffa726', icon: '🔉' },
+      isEcho: { name: '回声', color: '#f44336', icon: '🔊' }
+    },
+    metricIssueRules: {
+      'Audio AEC Delay': { isNoSound: 0, isLowLevel: 0, isEcho: 1 },
+      'Audio Signal Level Nearin': { isNoSound: 1, isLowLevel: 1, isEcho: 0 },
+      'A RECORD SIGNAL VOLUME': { isNoSound: 1, isLowLevel: 1, isEcho: 0 },
+      'Chat Engine Error Code': { isNoSound: 1, isLowLevel: 1, isEcho: 1 }
+    }
+  };
+  
+  // 内联函数定义
+  window.getMetricIssueTypes = function(metricName) {
+    return window.ISSUE_RULES.metricIssueRules[metricName] || { isNoSound: 0, isLowLevel: 0, isEcho: 0 };
+  };
+  
+  window.getIssueTypeConfig = function(issueType) {
+    return window.ISSUE_RULES.issueTypes[issueType];
+  };
+  
+  window.isMetricRelatedToIssue = function(metricName, issueType) {
+    const rules = window.getMetricIssueTypes(metricName);
+    return rules[issueType] === 1;
+  };
+  
+  window.extractMetricNameFromTitle = function(titleText) {
+    if (titleText.includes('AEC Delay')) return 'Audio AEC Delay';
+    if (titleText.includes('Signal Level')) return 'Audio Signal Level Nearin';
+    if (titleText.includes('Record Volume')) return 'A RECORD SIGNAL VOLUME';
+    if (titleText.includes('Error Code')) return 'Chat Engine Error Code';
+    return null;
+  };
 }
 
 // 等待页面加载完成
@@ -369,8 +536,8 @@ function showUidValuesPopup(uidValues, options = {}) {
           `).join('')}
         </div>
         <div class="popup-actions">
-          <button class="action-btn copy-btn" onclick="copyUidValues()">复制所有值</button>
-          <button class="action-btn export-btn" onclick="exportUidValues()">导出数据</button>
+          <button class="action-btn copy-btn">复制所有值</button>
+          <button class="action-btn export-btn">导出数据</button>
         </div>
       </div>
     `;
@@ -616,6 +783,10 @@ function showUidValuesPopup(uidValues, options = {}) {
   document.head.appendChild(style);
   document.body.appendChild(popup);
   
+  // 添加事件监听器（替代内联事件处理器）
+  const copyBtn = popup.querySelector('.copy-btn');
+  const exportBtn = popup.querySelector('.export-btn');
+  
   // 添加全局函数
   window.copyUidValues = () => {
     const text = uidValues.map(uid => 
@@ -650,6 +821,14 @@ function showUidValuesPopup(uidValues, options = {}) {
     URL.revokeObjectURL(url);
     showNotification('UID数据已导出', 'success');
   };
+  
+  // 绑定事件监听器
+  if (copyBtn) {
+    copyBtn.addEventListener('click', window.copyUidValues);
+  }
+  if (exportBtn) {
+    exportBtn.addEventListener('click', window.exportUidValues);
+  }
   
   showNotification(`找到 ${uidValues.length} 个UID元素`, 'success');
 }
@@ -928,8 +1107,8 @@ function displayCountersData(countersData) {
       `).join('')}
     </div>
     <div class="panel-footer">
-      <button class="copy-all-btn" onclick="copyAllCountersData()">复制所有数据</button>
-      <button class="export-btn" onclick="exportCountersData()">导出数据</button>
+      <button class="copy-all-btn">复制所有数据</button>
+      <button class="export-btn">导出数据</button>
     </div>
   `;
   
@@ -951,6 +1130,10 @@ function displayCountersData(countersData) {
   `;
   
   document.body.appendChild(panel);
+  
+  // 添加事件监听器（替代内联事件处理器）
+  const copyAllBtn = panel.querySelector('.copy-all-btn');
+  const exportBtn = panel.querySelector('.export-btn');
   
   // 添加复制和导出功能到全局
   window.copyAllCountersData = () => {
@@ -976,6 +1159,14 @@ function displayCountersData(countersData) {
     URL.revokeObjectURL(url);
     showNotification('数据已导出', 'success');
   };
+  
+  // 绑定事件监听器
+  if (copyAllBtn) {
+    copyAllBtn.addEventListener('click', window.copyAllCountersData);
+  }
+  if (exportBtn) {
+    exportBtn.addEventListener('click', window.exportCountersData);
+  }
   
   showNotification(`发现${countersData.length}条counters数据`, 'success');
 }
@@ -1010,11 +1201,12 @@ function showAecDelayAnalysis(response) {
     const aecDelayData = getAecDelayData(response) || generateMockAecDelayData();
     const signalLevelData = getAudioSignalLevelNearinData(response) || generateMockAudioSignalLevelNearinData();
     const recordSignalVolumeData = getARecordSignalVolumeData(response) || generateMockARecordSignalVolumeData();
+    const errorCodeData = getChatEngineErrorData(response);
     
     if (window.Chart) {
-      createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordSignalVolumeData);
+      createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData);
     } else {
-      createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignalVolumeData);
+      createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData);
     }
   }).catch(error => {
     console.error('加载Chart.js失败:', error);
@@ -1022,7 +1214,8 @@ function showAecDelayAnalysis(response) {
     const aecDelayData = generateMockAecDelayData();
     const signalLevelData = generateMockAudioSignalLevelNearinData();
     const recordSignalVolumeData = generateMockARecordSignalVolumeData();
-    createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignalVolumeData);
+    const errorCodeData = null;
+    createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData);
   });
 }
 
@@ -1172,6 +1365,82 @@ function getMetricData(responseText, metricName) {
 // 获取 A RECORD SIGNAL VOLUME 数据（保持向后兼容）
 function getARecordSignalVolumeData(responseText) {
   return getMetricData(responseText, 'A RECORD SIGNAL VOLUME');
+}
+
+// 获取并聚合 Chat Engine Last Error 数据
+function getChatEngineErrorData(responseText) {
+  if (!responseText || typeof responseText !== 'string') return null;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(responseText);
+  } catch (e) {
+    console.warn('getChatEngineErrorData: responseText 不是有效的 JSON');
+    return null;
+  }
+
+  // 定义需要提取的错误指标名称
+  const errorMetricNames = [
+    'Chat Engine Last Error 1',
+    'Chat Engine Last Error 2',
+    'Chat Engine Last Error 3'
+  ];
+
+  // 提取所有错误指标的数据
+  const allErrorData = [];
+  for (const item of Array.isArray(parsed) ? parsed : []) {
+    if (item && Array.isArray(item.data)) {
+      for (const counter of item.data) {
+        if (counter && typeof counter.name === 'string' && Array.isArray(counter.data)) {
+          const name = counter.name.trim();
+          if (errorMetricNames.includes(name)) {
+            allErrorData.push(...counter.data);
+          }
+        }
+      }
+    }
+  }
+
+  // 按时间戳聚合数据，排除 null、-1、0 的值
+  const aggregatedMap = new Map();
+  
+  // 辅助函数：检查是否为有效错误代码
+  const isValidErrorCode = (value) => {
+    return value !== null && value !== -1 && value !== 0;
+  };
+
+  // 辅助函数：添加错误代码到聚合映射
+  const addErrorCode = (timestamp, value) => {
+    if (isValidErrorCode(value)) {
+      if (!aggregatedMap.has(timestamp)) {
+        aggregatedMap.set(timestamp, []);
+      }
+      aggregatedMap.get(timestamp).push(value);
+    }
+  };
+
+  // 聚合所有错误数据
+  allErrorData.forEach(([timestamp, value]) => {
+    addErrorCode(timestamp, value);
+  });
+
+  // 转换为数组格式，保留同一时间戳的所有错误代码
+  const aggregatedData = Array.from(aggregatedMap.entries())
+    .map(([timestamp, values]) => 
+      values.map(value => ({ timestamp, value }))
+    )
+    .flat();
+
+  // 如果没有任何有效数据，返回 null
+  if (aggregatedData.length === 0) {
+    return null;
+  }
+
+  return {
+    name: 'Chat Engine Error Code',
+    counterId: 0, // 聚合数据没有单一 counter_id
+    data: aggregatedData
+  };
 }
 
 // 通用模拟数据生成函数
@@ -1349,7 +1618,15 @@ function loadChartJsFallback() {
 }
 
 // 创建组合音频分析图表
-function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordSignalVolumeData) {
+function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData) {
+  // 保存数据到全局变量，以便后续动态访问
+  window.metricDataCache = {
+    'Audio AEC Delay': aecDelayData,
+    'Audio Signal Level Nearin': signalLevelData,
+    'A RECORD SIGNAL VOLUME': recordSignalVolumeData,
+    'Chat Engine Error Code': errorCodeData
+  };
+  
   // 1) 容器与画布：若不存在则创建，存在则复用
   let chartContainer = document.querySelector('.combined-audio-analysis-container');
   if (!chartContainer) {
@@ -1364,24 +1641,24 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
         <div class="issue-checkboxes">
           <div class="checkbox-group">
             <label class="checkbox-item">
-              <input type="checkbox" id="isNoSound" onchange="updateIssueStatus('isNoSound', this.checked)">
+              <input type="checkbox" id="isNoSound" data-issue-type="isNoSound">
               <span class="checkbox-label">无声</span>
             </label>
             <label class="checkbox-item">
-              <input type="checkbox" id="isLowLevel" onchange="updateIssueStatus('isLowLevel', this.checked)">
+              <input type="checkbox" id="isLowLevel" data-issue-type="isLowLevel">
               <span class="checkbox-label">音量小</span>
             </label>
             <label class="checkbox-item">
-              <input type="checkbox" id="isEcho" onchange="updateIssueStatus('isEcho', this.checked)">
+              <input type="checkbox" id="isEcho" data-issue-type="isEcho">
               <span class="checkbox-label">回声</span>
             </label>
           </div>
         </div>
         <div class="chart-tabs">
-          <button class="tab-btn active" onclick="switchTab('aec')">AEC Delay</button>
-          <button class="tab-btn" onclick="switchTab('signal')">Signal Level</button>
-          <button class="tab-btn" onclick="switchTab('record')">Record Volume</button>
-          <button class="tab-btn" onclick="switchTab('combined')">组合视图</button>
+          <button class="tab-btn active" data-tab="aec">AEC Delay</button>
+          <button class="tab-btn" data-tab="signal">Signal Level</button>
+          <button class="tab-btn" data-tab="record">Record Volume</button>
+          <button class="tab-btn" data-tab="combined">组合视图</button>
         </div>
         <div class="chart-canvas-container">
           <canvas id="aecDelayChart" width="600" height="300"></canvas>
@@ -1567,9 +1844,6 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
         scroll-behavior: smooth;
       }
       
-      .combined-audio-analysis-container .fallback-chart-info {
-        margin-bottom: 20px;
-      }
       
       .combined-audio-analysis-container .chart-footer {
         margin-top: 20px;
@@ -1658,6 +1932,16 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
         border-bottom-color: #4ecdc4;
       }
       
+      .combined-audio-analysis-container .metric-row:nth-child(4) .metric-data-section {
+        background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+        border-right-color: #ff9800;
+      }
+      
+      .combined-audio-analysis-container .metric-row:nth-child(4) .metric-data-section h4 {
+        color: #ff9800;
+        border-bottom-color: #ff9800;
+      }
+      
       /* 响应式设计 */
       @media (max-width: 768px) {
         .combined-audio-analysis-container .metric-row {
@@ -1680,6 +1964,10 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
         
         .combined-audio-analysis-container .metric-row:nth-child(3) .metric-data-section {
           border-bottom-color: #4ecdc4;
+        }
+        
+        .combined-audio-analysis-container .metric-row:nth-child(4) .metric-data-section {
+          border-bottom-color: #ff9800;
         }
       }
       
@@ -1958,10 +2246,6 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
       
       
       
-      .combined-audio-analysis-container .fallback-chart-info {
-        text-align: center;
-        padding: 20px;
-      }
       
       .combined-audio-analysis-container .data-tables {
         display: flex;
@@ -2058,43 +2342,41 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
   createSignalLevelChart(signalLevelData);
   createRecordVolumeChart(recordSignalVolumeData);
   createCombinedChart(aecDelayData, signalLevelData, recordSignalVolumeData);
-
-  // 3) 添加全局函数
-  // 更新问题状态
-  window.updateIssueStatus = (issueType, isChecked) => {
-    console.log(`问题状态更新: ${issueType} = ${isChecked}`);
-    
-    // 更新全局状态对象
-    if (!window.audioAnalysisIssues) {
-      window.audioAnalysisIssues = {
-        isNoSound: false,
-        isLowLevel: false,
-        isEcho: false
-      };
-    }
-    
-    window.audioAnalysisIssues[issueType] = isChecked;
-    
-    // 根据问题状态更新图表显示
-    updateChartBasedOnIssues();
-    
-    // 显示状态更新通知
-    const statusText = isChecked ? '已标记' : '已取消';
-    showNotification(`${getIssueDisplayName(issueType)} ${statusText}`, 'info');
-  };
   
-  // 获取问题显示名称
-  function getIssueDisplayName(issueType) {
-    const names = {
-      'isNoSound': '无声',
-      'isLowLevel': '音量小',
-      'isEcho': '回声'
-    };
-    return names[issueType] || issueType;
+  // 初始化时隐藏统计信息，显示选择提示
+  const chartFooter = chartContainer.querySelector('.chart-footer');
+  if (chartFooter) {
+    chartFooter.style.display = 'none';
   }
   
-  // 根据问题状态更新图表
-  function updateChartBasedOnIssues() {
+  // 显示选择提示
+  showSelectionPrompt();
+
+  // 3) 添加事件监听器（替代内联事件处理器）
+  // 为复选框添加事件监听器
+  const checkboxes = chartContainer.querySelectorAll('input[type="checkbox"][data-issue-type]');
+  checkboxes.forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+      const issueType = this.getAttribute('data-issue-type');
+      window.updateIssueStatus(issueType, this.checked);
+    });
+  });
+
+  // 为标签页按钮添加事件监听器
+  const tabButtons = chartContainer.querySelectorAll('.tab-btn[data-tab]');
+  tabButtons.forEach(button => {
+    button.addEventListener('click', function() {
+      const tabName = this.getAttribute('data-tab');
+      window.switchTab(tabName);
+    });
+  });
+
+  // 4) 添加全局函数（updateIssueStatus 已在全局作用域定义）
+  
+  // 获取问题显示名称（已在全局作用域定义）
+  
+  // 根据问题状态更新图表 - 定义为全局函数以便 updateIssueStatus 调用
+  window.updateChartBasedOnIssues = function() {
     const issues = window.audioAnalysisIssues || {};
     
     // 更新图表标题以反映问题状态
@@ -2105,7 +2387,13 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
     
     // 更新统计信息显示
     updateStatisticsDisplay(issues);
-  }
+    
+    // 初始化时检查是否需要显示选择提示
+    const hasActiveIssues = Object.values(issues).some(checked => checked);
+    if (!hasActiveIssues) {
+      showSelectionPrompt();
+    }
+  };
   
   // 更新图表标题
   function updateChartTitle(issues) {
@@ -2127,56 +2415,117 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
   
   // 调整图表样式
   function adjustChartStyles(issues) {
-    const chartContainer = document.querySelector('.combined-audio-analysis-container');
-    if (!chartContainer) return;
+    // 不再修改画布颜色
+    // const chartContainer = document.querySelector('.combined-audio-analysis-container');
+    // if (!chartContainer) return;
     
     // 根据问题状态添加相应的 CSS 类
-    chartContainer.classList.remove('has-no-sound', 'has-low-level', 'has-echo');
+    // chartContainer.classList.remove('has-no-sound', 'has-low-level', 'has-echo');
     
-    if (issues.isNoSound) {
-      chartContainer.classList.add('has-no-sound');
-    }
-    if (issues.isLowLevel) {
-      chartContainer.classList.add('has-low-level');
-    }
-    if (issues.isEcho) {
-      chartContainer.classList.add('has-echo');
-    }
+    // if (issues.isNoSound) {
+    //   chartContainer.classList.add('has-no-sound');
+    // }
+    // if (issues.isLowLevel) {
+    //   chartContainer.classList.add('has-low-level');
+    // }
+    // if (issues.isEcho) {
+    //   chartContainer.classList.add('has-echo');
+    // }
   }
   
   // 更新统计信息显示
   function updateStatisticsDisplay(issues) {
-    // 这里可以根据问题状态调整统计信息的显示
-    // 例如，高亮显示相关的问题指标
-    const statSections = document.querySelectorAll('.stat-section');
+    // 根据问题类型规则智能高亮相关指标
+    const metricRows = document.querySelectorAll('.metric-row');
     
-    statSections.forEach(section => {
-      const title = section.querySelector('h4');
-      if (!title) return;
+    // 检查是否有任何问题被勾选
+    const hasActiveIssues = Object.values(issues).some(checked => checked);
+    
+    // 调试信息
+    console.log('更新统计信息显示:', {
+      issues: issues,
+      hasActiveIssues: hasActiveIssues,
+      metricRowsCount: metricRows.length
+    });
+    
+    metricRows.forEach(metricRow => {
+      // 获取 metric 名称
+      const metricName = metricRow.dataset.metric;
+      if (!metricName) return;
       
-      const titleText = title.textContent;
+      let shouldHighlight = false;
+      let highlightColor = '#667eea';
+      let highlightBackground = 'white';
+      let shouldShow = true; // 默认显示所有指标
       
-      // 根据问题类型高亮相应的统计区域
-      if (issues.isNoSound && titleText.includes('Record Volume')) {
-        section.style.borderLeft = '4px solid #ff6b6b';
-        section.style.background = '#fff5f5';
-      } else if (issues.isLowLevel && titleText.includes('Signal Level')) {
-        section.style.borderLeft = '4px solid #ffa726';
-        section.style.background = '#fff8e1';
-      } else if (issues.isEcho && titleText.includes('AEC Delay')) {
-        section.style.borderLeft = '4px solid #f44336';
-        section.style.background = '#ffebee';
+      // 如果有问题被勾选，只显示相关指标
+      if (hasActiveIssues) {
+        shouldShow = false;
+        
+        // 检查当前指标是否与任何勾选的问题类型相关
+        Object.keys(issues).forEach(issueType => {
+          if (issues[issueType]) {
+            // 确保规则表函数可用
+            if (typeof getIssueTypeConfig === 'function' && typeof isMetricRelatedToIssue === 'function') {
+              const issueConfig = getIssueTypeConfig(issueType);
+              if (issueConfig) {
+                const isRelated = isMetricRelatedToIssue(metricName, issueType);
+                
+                // 调试信息
+                console.log(`指标匹配检查:`, {
+                  metricName: metricName,
+                  issueType: issueType,
+                  isRelated: isRelated
+                });
+                
+                if (isRelated) {
+                  shouldShow = true;
+                  shouldHighlight = true;
+                  highlightColor = issueConfig.color;
+                  highlightBackground = issueConfig.color + '15'; // 添加透明度
+                }
+              }
+            }
+          }
+        });
+      }
+      
+      // 控制显示/隐藏
+      if (shouldShow) {
+        metricRow.style.display = 'flex';
+        metricRow.style.opacity = '1';
+        metricRow.style.transform = 'scale(1)';
       } else {
-        section.style.borderLeft = '2px solid #667eea';
-        section.style.background = 'white';
+        metricRow.style.display = 'none';
+      }
+      
+      // 应用高亮样式
+      if (shouldHighlight) {
+        metricRow.style.border = `2px solid ${highlightColor}`;
+        metricRow.style.background = highlightBackground;
+        metricRow.style.boxShadow = `0 2px 8px ${highlightColor}30`;
+      } else {
+        metricRow.style.border = '1px solid #e9ecef';
+        metricRow.style.background = 'white';
+        metricRow.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
       }
     });
+    
+    // 更新显示状态提示
+    updateDisplayStatusMessage(issues, hasActiveIssues);
+    
+    // 如果没有勾选任何问题，显示选择提示
+    if (!hasActiveIssues) {
+      showSelectionPrompt();
+    } else {
+      hideSelectionPrompt();
+    }
   }
   
   window.switchTab = (tabName) => {
     // 切换标签页
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-    document.querySelector(`[onclick="switchTab('${tabName}')"]`).classList.add('active');
+    document.querySelector(`.tab-btn[data-tab="${tabName}"]`).classList.add('active');
     
     // 切换画布显示
     document.getElementById('aecDelayChart').style.display = tabName === 'aec' ? 'block' : 'none';
@@ -2928,8 +3277,16 @@ function updateChartStats(data) {
 }
 
 // 创建组合备用图表（当Chart.js无法加载时使用）
-function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignalVolumeData) {
+function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData) {
   console.log('使用备用图表显示组合音频分析数据');
+  
+  // 保存数据到全局变量，以便后续动态访问
+  window.metricDataCache = {
+    'Audio AEC Delay': aecDelayData,
+    'Audio Signal Level Nearin': signalLevelData,
+    'A RECORD SIGNAL VOLUME': recordSignalVolumeData,
+    'Chat Engine Error Code': errorCodeData
+  };
   
   // 创建图表容器
   const chartContainer = document.createElement('div');
@@ -2943,111 +3300,139 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
       <div class="issue-checkboxes">
         <div class="checkbox-group">
           <label class="checkbox-item">
-            <input type="checkbox" id="isNoSound" onchange="updateIssueStatus('isNoSound', this.checked)">
+            <input type="checkbox" id="isNoSound" data-issue-type="isNoSound">
             <span class="checkbox-label">无声</span>
           </label>
           <label class="checkbox-item">
-            <input type="checkbox" id="isLowLevel" onchange="updateIssueStatus('isLowLevel', this.checked)">
+            <input type="checkbox" id="isLowLevel" data-issue-type="isLowLevel">
             <span class="checkbox-label">音量小</span>
           </label>
           <label class="checkbox-item">
-            <input type="checkbox" id="isEcho" onchange="updateIssueStatus('isEcho', this.checked)">
+            <input type="checkbox" id="isEcho" data-issue-type="isEcho">
             <span class="checkbox-label">回声</span>
           </label>
         </div>
       </div>
       <div class="scrollable-content">
-        <div class="fallback-chart-info">
-          <p>📈 使用简化图表显示数据</p>
-          <div class="metrics-layout">
-            <div class="metric-row">
-              <div class="metric-data-section">
-                <h4>📊 AEC Delay 数据</h4>
-                <div class="data-table" id="aecDataTable"></div>
-              </div>
-              <div class="metric-stats-section">
-                <h4>📊 Audio AEC Delay 统计</h4>
-                <div class="stat-item">
-                  <span class="stat-label">数据点</span>
-                  <span class="stat-value">${aecDelayData.data.length}</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">平均延迟</span>
-                  <span class="stat-value">${calculateAverageDelay(aecDelayData.data)}ms</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">最大延迟</span>
-                  <span class="stat-value">${calculateMaxDelay(aecDelayData.data)}ms</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">变化次数</span>
-                  <span class="stat-value">${calculateChangeCount(aecDelayData.data)}</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">变化频率</span>
-                  <span class="stat-value">${calculateChangeFrequency(aecDelayData.data)}</span>
-                </div>
-              </div>
+        <div class="metrics-layout">
+          <div class="metric-row" data-metric="Audio AEC Delay">
+            <div class="metric-data-section">
+              <h4>📊 AEC Delay 数据</h4>
+              <div class="data-table" id="aecDataTable"></div>
             </div>
-            <div class="metric-row">
-              <div class="metric-data-section">
-                <h4>📈 Signal Level 数据</h4>
-                <div class="data-table" id="signalDataTable"></div>
+            <div class="metric-stats-section">
+              <h4>📊 Audio AEC Delay 统计</h4>
+              <div class="stat-item">
+                <span class="stat-label">数据点</span>
+                <span class="stat-value">${aecDelayData.data.length}</span>
               </div>
-              <div class="metric-stats-section">
-                <h4>📈 Audio Signal Level Nearin 统计</h4>
-                <div class="stat-item">
-                  <span class="stat-label">数据点</span>
-                  <span class="stat-value">${signalLevelData.data.length}</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">平均信号</span>
-                  <span class="stat-value">${calculateAverageDelay(signalLevelData.data)}</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">最大信号</span>
-                  <span class="stat-value">${calculateMaxDelay(signalLevelData.data)}</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">变化次数</span>
-                  <span class="stat-value">${calculateChangeCount(signalLevelData.data)}</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">变化频率</span>
-                  <span class="stat-value">${calculateChangeFrequency(signalLevelData.data)}</span>
-                </div>
+              <div class="stat-item">
+                <span class="stat-label">平均延迟</span>
+                <span class="stat-value">${calculateAverageDelay(aecDelayData.data)}ms</span>
               </div>
-            </div>
-            <div class="metric-row">
-              <div class="metric-data-section">
-                <h4>🎵 Record Volume 数据</h4>
-                <div class="data-table" id="recordDataTable"></div>
+              <div class="stat-item">
+                <span class="stat-label">最大延迟</span>
+                <span class="stat-value">${calculateMaxDelay(aecDelayData.data)}ms</span>
               </div>
-              <div class="metric-stats-section">
-                <h4>🎵 A RECORD SIGNAL VOLUME 统计</h4>
-                <div class="stat-item">
-                  <span class="stat-label">数据点</span>
-                  <span class="stat-value">${recordSignalVolumeData.data.length}</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">平均音量</span>
-                  <span class="stat-value">${calculateAverageDelay(recordSignalVolumeData.data)}</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">最大音量</span>
-                  <span class="stat-value">${calculateMaxDelay(recordSignalVolumeData.data)}</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">变化次数</span>
-                  <span class="stat-value">${calculateChangeCount(recordSignalVolumeData.data)}</span>
-                </div>
-                <div class="stat-item">
-                  <span class="stat-label">变化频率</span>
-                  <span class="stat-value">${calculateChangeFrequency(recordSignalVolumeData.data)}</span>
-                </div>
+              <div class="stat-item">
+                <span class="stat-label">变化次数</span>
+                <span class="stat-value">${calculateChangeCount(aecDelayData.data)}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">变化频率</span>
+                <span class="stat-value">${calculateChangeFrequency(aecDelayData.data)}</span>
               </div>
             </div>
           </div>
+          <div class="metric-row" data-metric="Audio Signal Level Nearin">
+            <div class="metric-data-section">
+              <h4>📈 Signal Level 数据</h4>
+              <div class="data-table" id="signalDataTable"></div>
+            </div>
+            <div class="metric-stats-section">
+              <h4>📈 Audio Signal Level Nearin 统计</h4>
+              <div class="stat-item">
+                <span class="stat-label">数据点</span>
+                <span class="stat-value">${signalLevelData.data.length}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">平均信号</span>
+                <span class="stat-value">${calculateAverageDelay(signalLevelData.data)}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">最大信号</span>
+                <span class="stat-value">${calculateMaxDelay(signalLevelData.data)}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">变化次数</span>
+                <span class="stat-value">${calculateChangeCount(signalLevelData.data)}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">变化频率</span>
+                <span class="stat-value">${calculateChangeFrequency(signalLevelData.data)}</span>
+              </div>
+            </div>
+          </div>
+          <div class="metric-row" data-metric="A RECORD SIGNAL VOLUME">
+            <div class="metric-data-section">
+              <h4>🎵 Record Volume 数据</h4>
+              <div class="data-table" id="recordDataTable"></div>
+            </div>
+            <div class="metric-stats-section">
+              <h4>🎵 A RECORD SIGNAL VOLUME 统计</h4>
+              <div class="stat-item">
+                <span class="stat-label">数据点</span>
+                <span class="stat-value">${recordSignalVolumeData.data.length}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">平均音量</span>
+                <span class="stat-value">${calculateAverageDelay(recordSignalVolumeData.data)}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">最大音量</span>
+                <span class="stat-value">${calculateMaxDelay(recordSignalVolumeData.data)}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">变化次数</span>
+                <span class="stat-value">${calculateChangeCount(recordSignalVolumeData.data)}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">变化频率</span>
+                <span class="stat-value">${calculateChangeFrequency(recordSignalVolumeData.data)}</span>
+              </div>
+            </div>
+          </div>
+          ${errorCodeData ? `
+          <div class="metric-row" data-metric="Chat Engine Error Code">
+            <div class="metric-data-section">
+              <h4>🚨 Error Code 数据</h4>
+              <div class="data-table" id="errorCodeDataTable"></div>
+            </div>
+            <div class="metric-stats-section">
+              <h4>🚨 Chat Engine Error Code 统计</h4>
+              <div class="stat-item">
+                <span class="stat-label">数据点</span>
+                <span class="stat-value">${errorCodeData.data.length}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">错误代码数</span>
+                <span class="stat-value">${new Set(errorCodeData.data.map(d => d.value)).size}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">最大错误码</span>
+                <span class="stat-value">${Math.max(...errorCodeData.data.map(d => d.value))}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">变化次数</span>
+                <span class="stat-value">${calculateChangeCount(errorCodeData.data)}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">变化频率</span>
+                <span class="stat-value">${calculateChangeFrequency(errorCodeData.data)}</span>
+              </div>
+            </div>
+          </div>
+          ` : ''}
         </div>
       </div>
     </div>
@@ -3161,9 +3546,6 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
         scroll-behavior: smooth;
       }
       
-      .combined-audio-analysis-container .fallback-chart-info {
-        margin-bottom: 20px;
-      }
       
       .combined-audio-analysis-container .chart-footer {
         margin-top: 20px;
@@ -3252,6 +3634,16 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
         border-bottom-color: #4ecdc4;
       }
       
+      .combined-audio-analysis-container .metric-row:nth-child(4) .metric-data-section {
+        background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+        border-right-color: #ff9800;
+      }
+      
+      .combined-audio-analysis-container .metric-row:nth-child(4) .metric-data-section h4 {
+        color: #ff9800;
+        border-bottom-color: #ff9800;
+      }
+      
       /* 响应式设计 */
       @media (max-width: 768px) {
         .combined-audio-analysis-container .metric-row {
@@ -3274,6 +3666,10 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
         
         .combined-audio-analysis-container .metric-row:nth-child(3) .metric-data-section {
           border-bottom-color: #4ecdc4;
+        }
+        
+        .combined-audio-analysis-container .metric-row:nth-child(4) .metric-data-section {
+          border-bottom-color: #ff9800;
         }
       }
       
@@ -3552,10 +3948,6 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
       
       
       
-      .combined-audio-analysis-container .fallback-chart-info {
-        text-align: center;
-        padding: 20px;
-      }
       
       .combined-audio-analysis-container .data-tables {
         display: flex;
@@ -3650,43 +4042,44 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
   createDataTable(aecDelayData.data, 'aecDataTable');
   createDataTable(signalLevelData.data, 'signalDataTable');
   createDataTable(recordSignalVolumeData.data, 'recordDataTable');
-
-  // 添加全局函数
-  // 更新问题状态
-  window.updateIssueStatus = (issueType, isChecked) => {
-    console.log(`问题状态更新: ${issueType} = ${isChecked}`);
-    
-    // 更新全局状态对象
-    if (!window.audioAnalysisIssues) {
-      window.audioAnalysisIssues = {
-        isNoSound: false,
-        isLowLevel: false,
-        isEcho: false
-      };
-    }
-    
-    window.audioAnalysisIssues[issueType] = isChecked;
-    
-    // 根据问题状态更新图表显示
-    updateChartBasedOnIssues();
-    
-    // 显示状态更新通知
-    const statusText = isChecked ? '已标记' : '已取消';
-    showNotification(`${getIssueDisplayName(issueType)} ${statusText}`, 'info');
-  };
-  
-  // 获取问题显示名称
-  function getIssueDisplayName(issueType) {
-    const names = {
-      'isNoSound': '无声',
-      'isLowLevel': '音量小',
-      'isEcho': '回声'
-    };
-    return names[issueType] || issueType;
+  if (errorCodeData) {
+    createDataTable(errorCodeData.data, 'errorCodeDataTable');
   }
   
-  // 根据问题状态更新图表
-  function updateChartBasedOnIssues() {
+  // 初始化时隐藏所有指标行，显示选择提示
+  const metricRows = chartContainer.querySelectorAll('.metric-row');
+  metricRows.forEach(row => {
+    row.style.display = 'none';
+  });
+  
+  // 显示选择提示
+  showSelectionPrompt();
+
+  // 添加事件监听器（替代内联事件处理器）
+  // 为复选框添加事件监听器
+  const checkboxes = chartContainer.querySelectorAll('input[type="checkbox"][data-issue-type]');
+  checkboxes.forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+      const issueType = this.getAttribute('data-issue-type');
+      window.updateIssueStatus(issueType, this.checked);
+    });
+  });
+
+  // 为标签页按钮添加事件监听器
+  const tabButtons = chartContainer.querySelectorAll('.tab-btn[data-tab]');
+  tabButtons.forEach(button => {
+    button.addEventListener('click', function() {
+      const tabName = this.getAttribute('data-tab');
+      window.switchTab(tabName);
+    });
+  });
+
+  // 添加全局函数（updateIssueStatus 已在全局作用域定义）
+  
+  // 获取问题显示名称（已在全局作用域定义）
+  
+  // 根据问题状态更新图表 - 定义为全局函数以便 updateIssueStatus 调用
+  window.updateChartBasedOnIssues = function() {
     const issues = window.audioAnalysisIssues || {};
     
     // 更新图表标题以反映问题状态
@@ -3697,7 +4090,13 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
     
     // 更新统计信息显示
     updateStatisticsDisplay(issues);
-  }
+    
+    // 初始化时检查是否需要显示选择提示
+    const hasActiveIssues = Object.values(issues).some(checked => checked);
+    if (!hasActiveIssues) {
+      showSelectionPrompt();
+    }
+  };
   
   // 更新图表标题
   function updateChartTitle(issues) {
@@ -3719,51 +4118,255 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
   
   // 调整图表样式
   function adjustChartStyles(issues) {
-    const chartContainer = document.querySelector('.combined-audio-analysis-container');
-    if (!chartContainer) return;
+    // 不再修改画布颜色
+    // const chartContainer = document.querySelector('.combined-audio-analysis-container');
+    // if (!chartContainer) return;
     
     // 根据问题状态添加相应的 CSS 类
-    chartContainer.classList.remove('has-no-sound', 'has-low-level', 'has-echo');
+    // chartContainer.classList.remove('has-no-sound', 'has-low-level', 'has-echo');
     
-    if (issues.isNoSound) {
-      chartContainer.classList.add('has-no-sound');
-    }
-    if (issues.isLowLevel) {
-      chartContainer.classList.add('has-low-level');
-    }
-    if (issues.isEcho) {
-      chartContainer.classList.add('has-echo');
-    }
+    // if (issues.isNoSound) {
+    //   chartContainer.classList.add('has-no-sound');
+    // }
+    // if (issues.isLowLevel) {
+    //   chartContainer.classList.add('has-low-level');
+    // }
+    // if (issues.isEcho) {
+    //   chartContainer.classList.add('has-echo');
+    // }
   }
   
   // 更新统计信息显示
   function updateStatisticsDisplay(issues) {
-    // 这里可以根据问题状态调整统计信息的显示
-    // 例如，高亮显示相关的问题指标
-    const statSections = document.querySelectorAll('.stat-section');
+    // 根据问题类型规则智能高亮相关指标
+    const metricRows = document.querySelectorAll('.metric-row');
     
-    statSections.forEach(section => {
-      const title = section.querySelector('h4');
-      if (!title) return;
+    // 检查是否有任何问题被勾选
+    const hasActiveIssues = Object.values(issues).some(checked => checked);
+    
+    // 调试信息
+    console.log('更新统计信息显示:', {
+      issues: issues,
+      hasActiveIssues: hasActiveIssues,
+      metricRowsCount: metricRows.length
+    });
+    
+    metricRows.forEach(metricRow => {
+      // 获取 metric 名称
+      const metricName = metricRow.dataset.metric;
+      if (!metricName) return;
       
-      const titleText = title.textContent;
+      let shouldHighlight = false;
+      let highlightColor = '#667eea';
+      let highlightBackground = 'white';
+      let shouldShow = true; // 默认显示所有指标
       
-      // 根据问题类型高亮相应的统计区域
-      if (issues.isNoSound && titleText.includes('Record Volume')) {
-        section.style.borderLeft = '4px solid #ff6b6b';
-        section.style.background = '#fff5f5';
-      } else if (issues.isLowLevel && titleText.includes('Signal Level')) {
-        section.style.borderLeft = '4px solid #ffa726';
-        section.style.background = '#fff8e1';
-      } else if (issues.isEcho && titleText.includes('AEC Delay')) {
-        section.style.borderLeft = '4px solid #f44336';
-        section.style.background = '#ffebee';
+      // 如果有问题被勾选，只显示相关指标
+      if (hasActiveIssues) {
+        shouldShow = false;
+        
+        // 检查当前指标是否与任何勾选的问题类型相关
+        Object.keys(issues).forEach(issueType => {
+          if (issues[issueType]) {
+            // 确保规则表函数可用
+            if (typeof getIssueTypeConfig === 'function' && typeof isMetricRelatedToIssue === 'function') {
+              const issueConfig = getIssueTypeConfig(issueType);
+              if (issueConfig) {
+                const isRelated = isMetricRelatedToIssue(metricName, issueType);
+                
+                // 调试信息
+                console.log(`指标匹配检查:`, {
+                  metricName: metricName,
+                  issueType: issueType,
+                  isRelated: isRelated
+                });
+                
+                if (isRelated) {
+                  shouldShow = true;
+                  shouldHighlight = true;
+                  highlightColor = issueConfig.color;
+                  highlightBackground = issueConfig.color + '15'; // 添加透明度
+                }
+              }
+            }
+          }
+        });
+      }
+      
+      // 控制显示/隐藏
+      if (shouldShow) {
+        metricRow.style.display = 'flex';
+        metricRow.style.opacity = '1';
+        metricRow.style.transform = 'scale(1)';
       } else {
-        section.style.borderLeft = '2px solid #667eea';
-        section.style.background = 'white';
+        metricRow.style.display = 'none';
+      }
+      
+      // 应用高亮样式
+      if (shouldHighlight) {
+        metricRow.style.border = `2px solid ${highlightColor}`;
+        metricRow.style.background = highlightBackground;
+        metricRow.style.boxShadow = `0 2px 8px ${highlightColor}30`;
+      } else {
+        metricRow.style.border = '1px solid #e9ecef';
+        metricRow.style.background = 'white';
+        metricRow.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
       }
     });
+    
+    // 更新显示状态提示
+    updateDisplayStatusMessage(issues, hasActiveIssues);
+    
+    // 如果没有勾选任何问题，显示选择提示
+    if (!hasActiveIssues) {
+      showSelectionPrompt();
+    } else {
+      hideSelectionPrompt();
+    }
   }
+  
+  // 更新显示状态提示
+  function updateDisplayStatusMessage(issues, hasActiveIssues) {
+    let statusMessage = '';
+    
+    if (hasActiveIssues) {
+      const activeIssues = Object.entries(issues)
+        .filter(([key, value]) => value)
+        .map(([key]) => {
+          if (typeof getIssueTypeConfig === 'function') {
+            const config = getIssueTypeConfig(key);
+            return config ? config.name : key;
+          }
+          return key;
+        });
+      
+      statusMessage = `当前显示与以下问题相关的指标: ${activeIssues.join(', ')}`;
+    } else {
+      statusMessage = '请选择要分析的音频问题类型';
+    }
+    
+    // 更新或创建状态提示
+    let statusElement = document.querySelector('.issue-status-message');
+    if (!statusElement) {
+      statusElement = document.createElement('div');
+      statusElement.className = 'issue-status-message';
+      statusElement.style.cssText = `
+        padding: 10px 15px;
+        margin: 10px 0;
+        background: #e3f2fd;
+        border-left: 4px solid #2196f3;
+        border-radius: 4px;
+        font-size: 14px;
+        color: #1976d2;
+        font-weight: 500;
+      `;
+      
+      // 插入到问题勾选框后面
+      const issueCheckboxes = document.querySelector('.issue-checkboxes');
+      if (issueCheckboxes && issueCheckboxes.parentNode) {
+        issueCheckboxes.parentNode.insertBefore(statusElement, issueCheckboxes.nextSibling);
+      }
+    }
+    
+    statusElement.textContent = statusMessage;
+  }
+  
+  // 显示选择问题类型提示
+  function showSelectionPrompt() {
+    // 隐藏所有指标行（备用图表）
+    const metricRows = document.querySelectorAll('.metric-row');
+    metricRows.forEach(row => {
+      row.style.display = 'none';
+    });
+    
+    // 隐藏统计信息区域（主图表）
+    const chartFooters = document.querySelectorAll('.chart-footer');
+    chartFooters.forEach(footer => {
+      footer.style.display = 'none';
+    });
+    
+    // 创建或显示选择提示
+    let promptElement = document.querySelector('.selection-prompt');
+    if (!promptElement) {
+      promptElement = document.createElement('div');
+      promptElement.className = 'selection-prompt';
+      promptElement.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 60px 20px;
+        text-align: center;
+        background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+        border-radius: 12px;
+        margin: 20px 0;
+        border: 2px dashed #dee2e6;
+        min-height: 200px;
+      `;
+      
+      promptElement.innerHTML = `
+        <div style="font-size: 48px; margin-bottom: 20px; opacity: 0.6;">⬆️</div>
+        <h3 style="margin: 0 0 10px 0; color: #495057; font-size: 18px; font-weight: 600;">选择分析问题类型</h3>
+        <p style="margin: 0; color: #6c757d; font-size: 14px; line-height: 1.5;">
+          请在上方勾选您要分析的音频问题类型<br>
+          系统将显示与所选问题相关的指标数据
+        </p>
+        <div style="margin-top: 20px; padding: 10px 20px; background: #e3f2fd; border-radius: 6px; font-size: 12px; color: #1976d2;">
+          💡 提示：勾选问题类型后，系统会自动过滤显示相关指标
+        </div>
+      `;
+      
+      // 插入到滚动内容区域
+      const scrollableContent = document.querySelector('.scrollable-content');
+      if (scrollableContent) {
+        scrollableContent.appendChild(promptElement);
+      }
+    } else {
+      promptElement.style.display = 'flex';
+    }
+  }
+  
+  // 隐藏选择问题类型提示
+  function hideSelectionPrompt() {
+    const promptElement = document.querySelector('.selection-prompt');
+    if (promptElement) {
+      promptElement.style.display = 'none';
+    }
+  }
+  
+  // 从标题中提取指标名称
+  function extractMetricNameFromTitle(titleText) {
+    if (titleText.includes('AEC Delay')) return 'Audio AEC Delay';
+    if (titleText.includes('Signal Level')) return 'Audio Signal Level Nearin';
+    if (titleText.includes('Record Volume')) return 'A RECORD SIGNAL VOLUME';
+    return null;
+  }
+  
+  // 测试规则表匹配功能
+  window.testIssueRules = function() {
+    console.log('=== 测试问题类型规则表匹配 ===');
+    
+    const testCases = [
+      { issueType: 'isNoSound', expectedMetrics: ['Audio Signal Level Nearin', 'A RECORD SIGNAL VOLUME'] },
+      { issueType: 'isLowLevel', expectedMetrics: ['Audio Signal Level Nearin', 'A RECORD SIGNAL VOLUME'] },
+      { issueType: 'isEcho', expectedMetrics: ['Audio AEC Delay'] }
+    ];
+    
+    testCases.forEach(testCase => {
+      console.log(`\n测试问题类型: ${testCase.issueType}`);
+      
+      if (typeof getMetricsForIssueType === 'function') {
+        const actualMetrics = getMetricsForIssueType(testCase.issueType);
+        console.log('期望指标:', testCase.expectedMetrics);
+        console.log('实际指标:', actualMetrics);
+        console.log('匹配结果:', JSON.stringify(actualMetrics) === JSON.stringify(testCase.expectedMetrics) ? '✅ 通过' : '❌ 失败');
+      } else {
+        console.log('❌ 规则表函数未加载');
+      }
+    });
+    
+    console.log('\n=== 测试完成 ===');
+  };
   
   window.exportCombinedChartData = () => {
     const csvData = [
@@ -3819,10 +4422,6 @@ function createFallbackChart(aecDelayData) {
       <button class="close-chart" onclick="this.parentElement.parentElement.remove()">×</button>
     </div>
     <div class="chart-content">
-      <div class="fallback-chart-info">
-        <p>📈 使用简化图表显示数据</p>
-        <div class="data-table" id="dataTable"></div>
-      </div>
     </div>
     <div class="chart-footer">
       <div class="chart-stats">
@@ -4085,12 +4684,30 @@ function waitForAllElements(selector, timeout = 5000) {
 
 // 页面加载完成后执行
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', async () => {
+    // 先加载问题类型规则表
+    try {
+      await loadIssueRules();
+      console.log('问题类型规则表加载成功');
+    } catch (error) {
+      console.warn('问题类型规则表加载失败，将使用默认行为:', error);
+    }
+    
     injectAutoCheckButton();
     // 启动网络监听
     monitorNetworkRequests();
   });
 } else {
+  // 立即执行时也加载规则表
+  (async () => {
+    try {
+      await loadIssueRules();
+      console.log('问题类型规则表加载成功');
+    } catch (error) {
+      console.warn('问题类型规则表加载失败，将使用默认行为:', error);
+    }
+  })();
+  
   injectAutoCheckButton();
   // 启动网络监听
   monitorNetworkRequests();
