@@ -1734,6 +1734,9 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
         <button class="close-chart" onclick="this.parentElement.parentElement.remove()">×</button>
       </div>
       <div class="chart-content">
+        <div class="base-info">
+          <h4>基本信息</h4>
+        </div>
         <div class="issue-checkboxes">
           <div class="checkbox-group">
             <label class="checkbox-item">
@@ -2112,6 +2115,22 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
         background: #a8a8a8;
       }
       
+      .combined-audio-analysis-container .base-info {
+        margin-bottom: 15px;
+        padding: 12px 15px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 8px;
+        color: white;
+        flex-shrink: 0;
+      }
+
+      .combined-audio-analysis-container .base-info h4 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: white;
+      }
+
       .combined-audio-analysis-container .issue-checkboxes {
         margin-bottom: 20px;
         padding: 15px;
@@ -3026,6 +3045,9 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
       <button class="close-chart" onclick="this.parentElement.parentElement.remove()">×</button>
     </div>
     <div class="chart-content">
+      <div class="base-info">
+        <h4>基本信息</h4>
+      </div>
       <div class="issue-checkboxes">
         <div class="checkbox-group">
           <label class="checkbox-item">
@@ -3447,6 +3469,22 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
         background: #a8a8a8;
       }
       
+      .combined-audio-analysis-container .base-info {
+        margin-bottom: 15px;
+        padding: 12px 15px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 8px;
+        color: white;
+        flex-shrink: 0;
+      }
+
+      .combined-audio-analysis-container .base-info h4 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 600;
+        color: white;
+      }
+
       .combined-audio-analysis-container .issue-checkboxes {
         margin-bottom: 20px;
         padding: 15px;
