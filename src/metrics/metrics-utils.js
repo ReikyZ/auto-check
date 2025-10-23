@@ -1,10 +1,11 @@
 /**
  * 指标分析公共工具模块
  * 提供通用的指标分析功能和工具函数
+ * ES6 模块版本
  */
 
-// 指标配置系统
-const AUDIO_METRICS_CONFIG = {
+// ES6 命名导出 - 指标配置系统
+export const AUDIO_METRICS_CONFIG = {
   'AEC_DELAY': {
     name: 'Audio AEC Delay',
     displayName: '📊 Audio AEC Delay 统计',
@@ -55,20 +56,20 @@ const AUDIO_METRICS_CONFIG = {
   }
 };
 
-// 获取所有指标配置
-function getAllMetricsConfig() {
+// ES6 箭头函数导出 - 获取所有指标配置
+export const getAllMetricsConfig = () => {
   return Object.values(AUDIO_METRICS_CONFIG);
 }
 
-// 根据指标名称获取配置
-function getMetricConfig(metricName) {
+// ES6 箭头函数导出 - 根据指标名称获取配置
+export const getMetricConfig = (metricName) => {
   return Object.values(AUDIO_METRICS_CONFIG).find(config =>
     config.name === metricName || config.name.toUpperCase() === metricName.toUpperCase()
   );
 }
 
-// 通用数据获取函数
-function getMetricData(responseText, metricName) {
+// ES6 箭头函数导出 - 通用数据获取函数
+export const getMetricData = (responseText, metricName) => {
   if (!responseText || typeof responseText !== 'string') return null;
 
   let parsed;
@@ -104,8 +105,8 @@ function getMetricData(responseText, metricName) {
   return null;
 }
 
-// 通用模拟数据生成函数
-function generateMockMetricData(metricName, dataPoints = 50) {
+// ES6 箭头函数导出 - 通用模拟数据生成函数
+export const generateMockMetricData = (metricName, dataPoints = 50) => {
   const config = getMetricConfig(metricName);
   if (!config) {
     console.warn(`未找到指标配置: ${metricName}`);
@@ -176,8 +177,8 @@ function generateMockMetricData(metricName, dataPoints = 50) {
   };
 }
 
-// 图表数据准备函数
-function prepareChartData(data) {
+// ES6 箭头函数导出 - 图表数据准备函数
+export const prepareChartData = (data) => {
   if (!data || !Array.isArray(data)) {
     return { labels: [], values: [] };
   }
@@ -192,21 +193,21 @@ function prepareChartData(data) {
   return { labels, values };
 }
 
-// 计算平均值
-function calculateAverageDelay(data) {
+// ES6 箭头函数导出 - 计算平均值
+export const calculateAverageDelay = (data) => {
   if (!data || !Array.isArray(data) || data.length === 0) return 0;
   const sum = data.reduce((acc, point) => acc + point.value, 0);
   return Math.round(sum / data.length);
 }
 
-// 计算最大值
-function calculateMaxDelay(data) {
+// ES6 箭头函数导出 - 计算最大值
+export const calculateMaxDelay = (data) => {
   if (!data || !Array.isArray(data) || data.length === 0) return 0;
   return Math.max(...data.map(point => point.value));
 }
 
-// 计算变化次数
-function calculateChangeCount(data) {
+// ES6 箭头函数导出 - 计算变化次数
+export const calculateChangeCount = (data) => {
   if (!data || !Array.isArray(data) || data.length < 2) return 0;
 
   let changeCount = 0;
@@ -223,8 +224,8 @@ function calculateChangeCount(data) {
   return changeCount;
 }
 
-// 计算变化频率
-function calculateChangeFrequency(data) {
+// ES6 箭头函数导出 - 计算变化频率
+export const calculateChangeFrequency = (data) => {
   if (!data || !Array.isArray(data) || data.length < 2) return '0%';
 
   const changeCount = calculateChangeCount(data);
@@ -233,8 +234,8 @@ function calculateChangeFrequency(data) {
   return frequency.toFixed(1) + '%';
 }
 
-// 获取指标变化阈值
-function getMetricThreshold(metricName) {
+// ES6 箭头函数导出 - 获取指标变化阈值
+export const getMetricThreshold = (metricName) => {
   switch (metricName.toUpperCase()) {
     case 'AUDIO AEC DELAY':
       return 10; // AEC Delay 变化阈值
@@ -247,13 +248,13 @@ function getMetricThreshold(metricName) {
   }
 }
 
-// 工具函数：格式化时间戳
-function formatTimestamp(timestamp) {
+// ES6 箭头函数导出 - 工具函数：格式化时间戳
+export const formatTimestamp = (timestamp) => {
   return new Date(timestamp).toLocaleString();
 }
 
-// 工具函数：导出数据为CSV
-function exportToCSV(data, filename) {
+// ES6 箭头函数导出 - 工具函数：导出数据为CSV
+export const exportToCSV = (data, filename) => {
   const csvData = data.map(point =>
     `${formatTimestamp(point.timestamp)},${point.value}`
   ).join('\n');
@@ -267,42 +268,26 @@ function exportToCSV(data, filename) {
   URL.revokeObjectURL(url);
 }
 
-// 工具函数：显示通知
-function showNotification(message, type = 'info') {
+// ES6 箭头函数导出 - 工具函数：显示通知
+export const showNotification = (message, type = 'info') => {
   // 这里可以实现通知显示逻辑
   console.log(`[${type.toUpperCase()}] ${message}`);
 }
 
-// 工具函数：更新图表统计信息
-function updateChartStats(data) {
+// ES6 箭头函数导出 - 工具函数：更新图表统计信息
+export const updateChartStats = (data) => {
   // 这里可以实现统计信息更新逻辑
   console.log('更新图表统计信息:', data);
 }
 
-// 工具函数：添加刷新按钮
-function addRefreshButton() {
+// ES6 箭头函数导出 - 工具函数：添加刷新按钮
+export const addRefreshButton = () => {
   // 这里可以实现刷新按钮添加逻辑
   console.log('添加刷新按钮');
 }
 
-// 将工具函数暴露到全局作用域，便于其他模块访问
-window.getMetricConfig = getMetricConfig;
-window.generateMockMetricData = generateMockMetricData;
-window.getMetricData = getMetricData;
-window.prepareChartData = prepareChartData;
-window.calculateAverageDelay = calculateAverageDelay;
-window.calculateMaxDelay = calculateMaxDelay;
-window.calculateChangeCount = calculateChangeCount;
-window.calculateChangeFrequency = calculateChangeFrequency;
-window.getMetricThreshold = getMetricThreshold;
-window.formatTimestamp = formatTimestamp;
-window.exportToCSV = exportToCSV;
-window.showNotification = showNotification;
-window.updateChartStats = updateChartStats;
-window.addRefreshButton = addRefreshButton;
-
-// 公共工具接口
-window.MetricsUtils = {
+// ES6 默认导出
+export default {
   AUDIO_METRICS_CONFIG,
   getAllMetricsConfig,
   getMetricConfig,
@@ -320,3 +305,42 @@ window.MetricsUtils = {
   updateChartStats,
   addRefreshButton
 };
+
+// 同时暴露到全局作用域以保持兼容性
+if (typeof window !== 'undefined') {
+  window.getMetricConfig = getMetricConfig;
+  window.generateMockMetricData = generateMockMetricData;
+  window.getMetricData = getMetricData;
+  window.prepareChartData = prepareChartData;
+  window.calculateAverageDelay = calculateAverageDelay;
+  window.calculateMaxDelay = calculateMaxDelay;
+  window.calculateChangeCount = calculateChangeCount;
+  window.calculateChangeFrequency = calculateChangeFrequency;
+  window.getMetricThreshold = getMetricThreshold;
+  window.formatTimestamp = formatTimestamp;
+  window.exportToCSV = exportToCSV;
+  window.showNotification = showNotification;
+  window.updateChartStats = updateChartStats;
+  window.addRefreshButton = addRefreshButton;
+
+  window.MetricsUtils = {
+    AUDIO_METRICS_CONFIG,
+    getAllMetricsConfig,
+    getMetricConfig,
+    getMetricData,
+    generateMockMetricData,
+    prepareChartData,
+    calculateAverageDelay,
+    calculateMaxDelay,
+    calculateChangeCount,
+    calculateChangeFrequency,
+    getMetricThreshold,
+    formatTimestamp,
+    exportToCSV,
+    showNotification,
+    updateChartStats,
+    addRefreshButton
+  };
+}
+
+console.log('✅ metrics-utils.js ES6 模块已加载');

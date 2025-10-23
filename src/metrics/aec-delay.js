@@ -1,11 +1,16 @@
-'use strict';
 /**
  * AEC Delay 指标分析模块
  * 负责处理 Audio AEC Delay 相关的所有分析功能
+ * ES6 模块版本
  */
 
-// 查找AEC Delay数据
-function findAecDelayData(countersData) {
+// 导入其他模块
+import { getAudioSignalLevelNearinData, generateMockAudioSignalLevelNearinData } from './signal-level.js';
+import { getARecordSignalVolumeData, generateMockARecordSignalVolumeData } from './record-volume.js';
+import { generateMockMetricData, prepareChartData } from './metrics-utils.js';
+
+// ES6 箭头函数导出 - 查找AEC Delay数据
+export const findAecDelayData = (countersData) => {
   for (const counter of countersData) {
     if (counter.aecDelayData) {
       return counter.aecDelayData;
@@ -14,15 +19,18 @@ function findAecDelayData(countersData) {
   return null;
 }
 
-// 显示AEC Delay分析弹窗
-function showAecDelayAnalysis(response) {
+// ES6 箭头函数导出 - 显示AEC Delay分析弹窗
+export const showAecDelayAnalysis = async (response) => {
   // 加载Chart.js库
-  loadChartJs().then(() => {
-    // 获取真实数据或生成模拟数据
-    const aecDelayData = getAecDelayData(response) || generateMockAecDelayData();
-    const signalLevelData = getAudioSignalLevelNearinData(response) || generateMockAudioSignalLevelNearinData();
-    const recordSignalVolumeData = getARecordSignalVolumeData(response) || generateMockARecordSignalVolumeData();
-    const errorCodeData = getChatEngineErrorData(response);
+  loadChartJs().then(async () => {
+    // 获取真实数据，不生成模拟数据，ErrorCode 使用 ES6 动态 import 调用
+    const aecDelayData = getAecDelayData(response);
+    const signalLevelData = getAudioSignalLevelNearinData(response);
+    const recordSignalVolumeData = getARecordSignalVolumeData(response);
+    
+    // 动态导入 error-code 模块
+    const errorCodeModule = await import('./error-code.js');
+    const errorCodeData = errorCodeModule.getChatEngineErrorData(response);
 
     if (window.Chart) {
       createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData);
@@ -40,7 +48,8 @@ function showAecDelayAnalysis(response) {
   });
 }
 
-function generateAecDelayDataFromParsed(parsed) {
+// ES6 箭头函数导出
+export const generateAecDelayDataFromParsed = (parsed) => {
   // 期望结构: 数组 -> item.data(数组) -> counter.name === "Audio AEC Delay" 且 counter.data 数组 [timestamp, value]
   if (!parsed || !Array.isArray(parsed)) return null;
   for (const item of parsed) {
@@ -59,7 +68,8 @@ function generateAecDelayDataFromParsed(parsed) {
   return null;
 }
 
-function getAecDelayData(responseText) {
+// ES6 箭头函数导出
+export const getAecDelayData = (responseText) => {
   // 解析 responseText，获取 "Audio AEC Delay" 的数据
   if (!responseText || typeof responseText !== 'string') return null;
 
@@ -97,13 +107,13 @@ function getAecDelayData(responseText) {
   return null;
 }
 
-// 生成模拟的AEC Delay数据（保持向后兼容）
-function generateMockAecDelayData() {
+// ES6 箭头函数导出 - 生成模拟的AEC Delay数据（保持向后兼容）
+export const generateMockAecDelayData = () => {
   return generateMockMetricData('Audio AEC Delay');
 }
 
-// 显示AEC Delay曲线图
-function showAecDelayChart(aecDelayData) {
+// ES6 箭头函数导出 - 显示AEC Delay曲线图
+export const showAecDelayChart = (aecDelayData) => {
   // 加载Chart.js库
   loadChartJs().then(() => {
     createAecDelayChart(aecDelayData);
@@ -113,8 +123,8 @@ function showAecDelayChart(aecDelayData) {
   });
 }
 
-// 创建AEC Delay图表
-function createAecDelayChart(aecDelayData) {
+// ES6 箭头函数导出 - 创建AEC Delay图表
+export const createAecDelayChart = (aecDelayData) => {
   // 1) 容器与画布：若不存在则创建，存在则复用
   let chartContainer = document.querySelector('.aec-delay-chart-container');
   if (!chartContainer) {
@@ -273,8 +283,8 @@ function createAecDelayChart(aecDelayData) {
   addRefreshButton();
 }
 
-// AEC Delay 模块的公共接口
-window.AecDelayMetrics = {
+// ES6 默认导出
+export default {
   findAecDelayData,
   showAecDelayAnalysis,
   generateAecDelayDataFromParsed,
@@ -283,3 +293,18 @@ window.AecDelayMetrics = {
   showAecDelayChart,
   createAecDelayChart
 };
+
+// 同时暴露到全局作用域以保持兼容性
+if (typeof window !== 'undefined') {
+  window.AecDelayMetrics = {
+    findAecDelayData,
+    showAecDelayAnalysis,
+    generateAecDelayDataFromParsed,
+    getAecDelayData,
+    generateMockAecDelayData,
+    showAecDelayChart,
+    createAecDelayChart
+  };
+}
+
+console.log('✅ aec-delay.js ES6 模块已加载');

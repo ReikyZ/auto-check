@@ -1,0 +1,162 @@
+/**
+ * 工具函数模块
+ * 提供常用的实用功能
+ * ES6 模块版本
+ */
+
+/**
+ * 显示通知
+ * @param {string} message - 通知消息
+ * @param {string} type - 通知类型：'success', 'error', 'info', 'warning'，默认为 'info'
+ */
+export const showNotification = (message, type = 'info') => {
+  // 创建通知元素
+  const notification = document.createElement('div');
+  notification.className = `auto-check-notification ${type}`;
+  notification.textContent = message;
+  
+  // 添加到页面
+  document.body.appendChild(notification);
+  
+  // 显示动画
+  setTimeout(() => {
+    notification.classList.add('show');
+  }, 100);
+  
+  // 3秒后移除
+  setTimeout(() => {
+    notification.classList.remove('show');
+    setTimeout(() => {
+      if (notification.parentNode) {
+        notification.parentNode.removeChild(notification);
+      }
+    }, 300);
+  }, 3000);
+};
+
+/**
+ * 显示成功通知
+ * @param {string} message - 消息内容
+ */
+export const showSuccess = (message) => {
+  showNotification(message, 'success');
+};
+
+/**
+ * 显示错误通知
+ * @param {string} message - 消息内容
+ */
+export const showError = (message) => {
+  showNotification(message, 'error');
+};
+
+/**
+ * 显示信息通知
+ * @param {string} message - 消息内容
+ */
+export const showInfo = (message) => {
+  showNotification(message, 'info');
+};
+
+/**
+ * 显示警告通知
+ * @param {string} message - 消息内容
+ */
+export const showWarning = (message) => {
+  showNotification(message, 'warning');
+};
+
+/**
+ * 格式化日期
+ * @param {Date|number} date - 日期对象或时间戳
+ * @returns {string} 格式化后的日期字符串
+ */
+export const formatDate = (date) => {
+  const d = date instanceof Date ? date : new Date(date);
+  return d.toLocaleString('zh-CN');
+};
+
+/**
+ * 延时函数
+ * @param {number} ms - 延时毫秒数
+ * @returns {Promise} Promise 对象
+ */
+export const delay = (ms) => {
+  return new Promise(resolve => setTimeout(resolve, ms));
+};
+
+/**
+ * 复制文本到剪贴板
+ * @param {string} text - 要复制的文本
+ * @returns {Promise<boolean>} 是否成功
+ */
+export const copyToClipboard = async (text) => {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (error) {
+    console.error('复制失败:', error);
+    return false;
+  }
+};
+
+/**
+ * 防抖函数
+ * @param {Function} func - 要防抖的函数
+ * @param {number} wait - 等待时间（毫秒）
+ * @returns {Function} 防抖后的函数
+ */
+export const debounce = (func, wait) => {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+};
+
+/**
+ * 节流函数
+ * @param {Function} func - 要节流的函数
+ * @param {number} limit - 时间限制（毫秒）
+ * @returns {Function} 节流后的函数
+ */
+export const throttle = (func, limit) => {
+  let inThrottle;
+  return function executedFunction(...args) {
+    if (!inThrottle) {
+      func(...args);
+      inThrottle = true;
+      setTimeout(() => inThrottle = false, limit);
+    }
+  };
+};
+
+// ES6 默认导出
+export default {
+  showNotification,
+  showSuccess,
+  showError,
+  showInfo,
+  showWarning,
+  formatDate,
+  delay,
+  copyToClipboard,
+  debounce,
+  throttle
+};
+
+// 同时暴露到全局作用域以保持兼容性
+if (typeof window !== 'undefined') {
+  window.showNotification = showNotification;
+  window.showSuccess = showSuccess;
+  window.showError = showError;
+  window.showInfo = showInfo;
+  window.showWarning = showWarning;
+}
+
+console.log('✅ utils.js ES6 模块已加载');
+

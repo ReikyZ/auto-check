@@ -1,9 +1,14 @@
 /**
  * Signal Level 指标分析模块
  * 负责处理 Audio Signal Level Nearin 相关的所有分析功能
+ * ES6 模块版本
  */
 
-function getAudioSignalLevelNearinData(responseText) {
+// 导入 metrics-utils 模块的函数
+import { generateMockMetricData, prepareChartData } from './metrics-utils.js';
+
+// ES6 箭头函数导出
+export const getAudioSignalLevelNearinData = (responseText) => {
   if (!responseText || typeof responseText !== 'string') return null;
 
   let parsed;
@@ -38,13 +43,13 @@ function getAudioSignalLevelNearinData(responseText) {
   return null;
 }
 
-// 生成模拟的 Audio Signal Level Nearin 数据（保持向后兼容）
-function generateMockAudioSignalLevelNearinData() {
+// ES6 箭头函数导出 - 生成模拟的 Audio Signal Level Nearin 数据（保持向后兼容）
+export const generateMockAudioSignalLevelNearinData = () => {
   return generateMockMetricData('Audio Signal Level Nearin');
 }
 
-// 创建 Signal Level 图表
-function createSignalLevelChart(signalLevelData) {
+// ES6 箭头函数导出 - 创建 Signal Level 图表
+export const createSignalLevelChart = (signalLevelData) => {
   const canvas = document.getElementById('signalLevelChart');
   if (!canvas) return;
 
@@ -113,9 +118,20 @@ function createSignalLevelChart(signalLevelData) {
   });
 }
 
-// Signal Level 模块的公共接口
-window.SignalLevelMetrics = {
+// ES6 默认导出
+export default {
   getAudioSignalLevelNearinData,
   generateMockAudioSignalLevelNearinData,
   createSignalLevelChart
 };
+
+// 同时暴露到全局作用域以保持兼容性
+if (typeof window !== 'undefined') {
+  window.SignalLevelMetrics = {
+    getAudioSignalLevelNearinData,
+    generateMockAudioSignalLevelNearinData,
+    createSignalLevelChart
+  };
+}
+
+console.log('✅ signal-level.js ES6 模块已加载');

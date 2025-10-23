@@ -1,19 +1,24 @@
 /**
  * Record Volume 指标分析模块
  * 负责处理 A RECORD SIGNAL VOLUME 相关的所有分析功能
+ * ES6 模块版本
  */
 
-function getARecordSignalVolumeData(responseText) {
+// 导入 metrics-utils 模块的函数
+import { getMetricData, generateMockMetricData, prepareChartData } from './metrics-utils.js';
+
+// ES6 箭头函数导出
+export const getARecordSignalVolumeData = (responseText) => {
   return getMetricData(responseText, 'A RECORD SIGNAL VOLUME');
 }
 
-// 生成模拟的 A RECORD SIGNAL VOLUME 数据（保持向后兼容）
-function generateMockARecordSignalVolumeData() {
+// ES6 箭头函数导出 - 生成模拟的 A RECORD SIGNAL VOLUME 数据（保持向后兼容）
+export const generateMockARecordSignalVolumeData = () => {
   return generateMockMetricData('A RECORD SIGNAL VOLUME');
 }
 
-// 创建 Record Volume 图表
-function createRecordVolumeChart(recordSignalVolumeData) {
+// ES6 箭头函数导出 - 创建 Record Volume 图表
+export const createRecordVolumeChart = (recordSignalVolumeData) => {
   const canvas = document.getElementById('recordVolumeChart');
   if (!canvas) return;
 
@@ -82,8 +87,8 @@ function createRecordVolumeChart(recordSignalVolumeData) {
   });
 }
 
-// 创建组合图表
-function createCombinedChart(aecDelayData, signalLevelData, recordSignalVolumeData) {
+// ES6 箭头函数导出 - 创建组合图表
+export const createCombinedChart = (aecDelayData, signalLevelData, recordSignalVolumeData) => {
   const canvas = document.getElementById('combinedChart');
   if (!canvas) return;
 
@@ -211,10 +216,22 @@ function createCombinedChart(aecDelayData, signalLevelData, recordSignalVolumeDa
   });
 }
 
-// Record Volume 模块的公共接口
-window.RecordVolumeMetrics = {
+// ES6 默认导出
+export default {
   getARecordSignalVolumeData,
   generateMockARecordSignalVolumeData,
   createRecordVolumeChart,
   createCombinedChart
 };
+
+// 同时暴露到全局作用域以保持兼容性
+if (typeof window !== 'undefined') {
+  window.RecordVolumeMetrics = {
+    getARecordSignalVolumeData,
+    generateMockARecordSignalVolumeData,
+    createRecordVolumeChart,
+    createCombinedChart
+  };
+}
+
+console.log('✅ record-volume.js ES6 模块已加载');

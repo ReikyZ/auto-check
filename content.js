@@ -57,14 +57,14 @@ function getIssueDisplayName(issueType) {
   // 需要加载的模块列表
   const modules = [
     'issue-rules.js',
-    'metrics/showAlert.js',
-    'metrics/base-info.js',
-    'metrics/metrics-utils.js',
-    'metrics/aec-delay.js',
-    'metrics/signal-level.js',
-    'metrics/record-volume.js',
-    'metrics/error-code.js',
-    'metrics/metrics-manager.js'
+    'src/metrics/showAlert.js',
+    'src/metrics/base-info.js',
+    'src/metrics/metrics-utils.js',
+    'src/metrics/aec-delay.js',
+    'src/metrics/signal-level.js',
+    'src/metrics/record-volume.js',
+    'src/metrics/error-code.js',
+    'src/metrics/metrics-manager.js'
   ];
 
   let loadedCount = 0;
@@ -82,7 +82,7 @@ function getIssueDisplayName(issueType) {
       script.onload = () => {
         loadedCount++;
         console.log(`✅ 模块加载完成: ${modulePath} (${loadedCount}/${modules.length})`);
-        if (modulePath === 'metrics/base-info.js') {
+        if (modulePath === 'src/metrics/base-info.js') {
           console.log('🔍 检查 base-info.js 暴露的函数:', {
             getSDKClientRole: typeof window.getSDKClientRole,
             getRoleDisplayText: typeof window.getRoleDisplayText,
@@ -133,7 +133,7 @@ function getIssueDisplayName(issueType) {
 async function updateBaseInfoWithES6(responseText) {
   try {
     // 使用 ES6 动态 import 导入模块
-    const baseInfoModule = await import(chrome.runtime.getURL('metrics/base-info.js'));
+    const baseInfoModule = await import(chrome.runtime.getURL('src/metrics/base-info.js'));
     
     console.log('✅ ES6 动态 import 成功');
     console.log('📝 导入的模块:', baseInfoModule);
@@ -1344,9 +1344,9 @@ function findAecDelayData(countersData) {
 }
 
 // 显示AEC Delay分析弹窗
-function showAecDelayAnalysis(response) {
+async function showAecDelayAnalysis(response) {
   // 加载Chart.js库
-  loadChartJs().then(() => {
+  loadChartJs().then(async () => {
     // 只获取真实数据，不生成模拟数据
     if (typeof showAlert === 'function') {
       showAlert('显示AEC Delay分析弹窗');
@@ -1356,12 +1356,20 @@ function showAecDelayAnalysis(response) {
       console.log('showNotification', showNotification);
     }
     
-    const aecDelayData = getAecDelayData(response);
+    // 动态导入 ES6 模块
+    const [aecDelayModule, signalLevelModule, recordVolumeModule, errorCodeModule] = await Promise.all([
+      import(chrome.runtime.getURL('src/metrics/aec-delay.js')),
+      import(chrome.runtime.getURL('src/metrics/signal-level.js')),
+      import(chrome.runtime.getURL('src/metrics/record-volume.js')),
+      import(chrome.runtime.getURL('src/metrics/error-code.js'))
+    ]);
+    
+    const aecDelayData = aecDelayModule.getAecDelayData(response);
     console.log('aecDelayData', aecDelayData);
     
-    const signalLevelData = getAudioSignalLevelNearinData(response);
-    const recordSignalVolumeData = getARecordSignalVolumeData(response);
-    const errorCodeData = getChatEngineErrorData(response);
+    const signalLevelData = signalLevelModule.getAudioSignalLevelNearinData(response);
+    const recordSignalVolumeData = recordVolumeModule.getARecordSignalVolumeData(response);
+    const errorCodeData = errorCodeModule.getChatEngineErrorData(response);
     
     // 如果没有数据，显示提示信息
     if (!aecDelayData && !signalLevelData && !recordSignalVolumeData && !errorCodeData) {
@@ -1399,197 +1407,9 @@ function generateAecDelayDataFromParsed(parsed) {
   return null;
 }
 
-function getAecDelayData(responseText) {
-  // 解析 responseText，获取 "Audio AEC Delay" 的数据
-  if (!responseText || typeof responseText !== 'string') return null;
-
-  let parsed;
-  try {
-    parsed = JSON.parse(responseText);
-  } catch (e) {
-    // 如果 responseText 解析失败
-    console.warn('getAecDelayData: responseText 不是有效的 JSON');
-    return null;
-  }
-
-  for (const item of Array.isArray(parsed) ? parsed : []) {
-    if (item && Array.isArray(item.data)) {
-      for (const counter of item.data) {
-        if (
-          counter &&
-          typeof counter.name === 'string' &&
-          counter.name.trim().toUpperCase() === 'AUDIO AEC DELAY' &&
-          Array.isArray(counter.data)
-        ) {
-          // 返回结构封装
-          return {
-            name: counter.name,
-            counterId: counter.counter_id || counter.id || 5,
-            data: counter.data.map(arr => ({
-              timestamp: arr[0],
-              value: arr[1]
-            }))
-          };
-        }
-      }
-    }
-  }
-  return null;
-}
-
-// 获取 Audio Signal Level Nearin 数据
-function getAudioSignalLevelNearinData(responseText) {
-  if (!responseText || typeof responseText !== 'string') return null;
-
-  let parsed;
-  try {
-    parsed = JSON.parse(responseText);
-  } catch (e) {
-    console.warn('getAudioSignalLevelNearinData: responseText 不是有效的 JSON');
-    return null;
-  }
-
-  for (const item of Array.isArray(parsed) ? parsed : []) {
-    if (item && Array.isArray(item.data)) {
-      for (const counter of item.data) {
-        if (
-          counter &&
-          typeof counter.name === 'string' &&
-          counter.name.trim().toUpperCase() === 'AUDIO SIGNAL LEVEL NEARIN' &&
-          Array.isArray(counter.data)
-        ) {
-          return {
-            name: counter.name,
-            counterId: counter.counter_id || counter.id || 6,
-            data: counter.data.map(arr => ({
-              timestamp: arr[0],
-              value: arr[1]
-            }))
-          };
-        }
-      }
-    }
-  }
-  return null;
-}
-
-// 通用数据获取函数
-function getMetricData(responseText, metricName) {
-  if (!responseText || typeof responseText !== 'string') return null;
-
-  let parsed;
-  try {
-    parsed = JSON.parse(responseText);
-  } catch (e) {
-    console.warn(`getMetricData: responseText 不是有效的 JSON (${metricName})`);
-    return null;
-  }
-
-  for (const item of Array.isArray(parsed) ? parsed : []) {
-    if (item && Array.isArray(item.data)) {
-      for (const counter of item.data) {
-        if (
-          counter &&
-          typeof counter.name === 'string' &&
-          counter.name.trim().toUpperCase() === metricName.toUpperCase() &&
-          Array.isArray(counter.data)
-        ) {
-          const config = getMetricConfig(metricName);
-          return {
-            name: counter.name,
-            counterId: counter.counter_id || counter.id || (config ? config.counterId : 0),
-            data: counter.data.map(arr => ({
-              timestamp: arr[0],
-              value: arr[1]
-            }))
-          };
-        }
-      }
-    }
-  }
-  return null;
-}
-
-// 获取 A RECORD SIGNAL VOLUME 数据（保持向后兼容）
-function getARecordSignalVolumeData(responseText) {
-  return getMetricData(responseText, 'A RECORD SIGNAL VOLUME');
-}
-
-// 获取并聚合 Chat Engine Last Error 数据
-function getChatEngineErrorData(responseText) {
-  if (!responseText || typeof responseText !== 'string') return null;
-
-  let parsed;
-  try {
-    parsed = JSON.parse(responseText);
-  } catch (e) {
-    console.warn('getChatEngineErrorData: responseText 不是有效的 JSON');
-    return null;
-  }
-
-  // 定义需要提取的错误指标名称
-  const errorMetricNames = [
-    'Chat Engine Last Error 1',
-    'Chat Engine Last Error 2',
-    'Chat Engine Last Error 3'
-  ];
-
-  // 提取所有错误指标的数据
-  const allErrorData = [];
-  for (const item of Array.isArray(parsed) ? parsed : []) {
-    if (item && Array.isArray(item.data)) {
-      for (const counter of item.data) {
-        if (counter && typeof counter.name === 'string' && Array.isArray(counter.data)) {
-          const name = counter.name.trim();
-          if (errorMetricNames.includes(name)) {
-            allErrorData.push(...counter.data);
-          }
-        }
-      }
-    }
-  }
-
-  // 按时间戳聚合数据，排除 null、-1、0 的值
-  const aggregatedMap = new Map();
-  
-  // 辅助函数：检查是否为有效错误代码
-  const isValidErrorCode = (value) => {
-    return value !== null && value !== -1 && value !== 0;
-  };
-
-  // 辅助函数：添加错误代码到聚合映射
-  const addErrorCode = (timestamp, value) => {
-    if (isValidErrorCode(value)) {
-      if (!aggregatedMap.has(timestamp)) {
-        aggregatedMap.set(timestamp, []);
-      }
-      aggregatedMap.get(timestamp).push(value);
-    }
-  };
-
-  // 聚合所有错误数据
-  allErrorData.forEach(([timestamp, value]) => {
-    addErrorCode(timestamp, value);
-  });
-
-  // 转换为数组格式，保留同一时间戳的所有错误代码
-  const aggregatedData = Array.from(aggregatedMap.entries())
-    .map(([timestamp, values]) => 
-      values.map(value => ({ timestamp, value }))
-    )
-    .flat();
-
-  // 如果没有任何有效数据，返回 null
-  if (aggregatedData.length === 0) {
-    return null;
-  }
-
-  return {
-    name: 'Chat Engine Error Code',
-    counterId: 0, // 聚合数据没有单一 counter_id
-    data: aggregatedData
-  };
-}
+// 这些函数已移动到 src/metrics 目录下的 ES6 模块中
+// 现在通过模块导入使用，保持全局可用性以供非模块代码调用
+// 详见下方 showAecDelayAnalysis 函数实现
 
 // 模拟数据生成函数已移除，不再使用模拟数据
 

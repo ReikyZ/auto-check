@@ -1,10 +1,11 @@
 /**
  * Error Code 指标分析模块
  * 负责处理 Chat Engine Error Code 相关的所有分析功能
+ * ES6 模块版本
  */
 
-// 获取并聚合 Chat Engine Last Error 数据
-function getChatEngineErrorData(responseText) {
+// ES6 箭头函数导出 - 获取并聚合 Chat Engine Last Error 数据
+export const getChatEngineErrorData = (responseText) => {
   if (!responseText || typeof responseText !== 'string') return null;
 
   let parsed;
@@ -79,7 +80,16 @@ function getChatEngineErrorData(responseText) {
   };
 }
 
-// Error Code 模块的公共接口
-window.ErrorCodeMetrics = {
+// ES6 默认导出
+export default {
   getChatEngineErrorData
 };
+
+// 同时暴露到全局作用域以保持兼容性
+if (typeof window !== 'undefined') {
+  window.ErrorCodeMetrics = {
+    getChatEngineErrorData
+  };
+}
+
+console.log('✅ error-code.js ES6 模块已加载');

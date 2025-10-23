@@ -18,7 +18,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js","metrics/aec-delay.js"],
+      "js": ["content.js","src/metrics/aec-delay.js"],
       "css": ["styles.css"],
       "run_at": "document_end"
     }
@@ -36,11 +36,13 @@
     {
       "resources": [
         "libs/chart.umd.js",
-        "metrics/*.js",
+        "src/*.js",
+        "src/metrics/*.js",
         "issue-rules.js",
-        "metrics/base-info.js",
-        "metrics/showAlert.js",
-        "metrics/aec-delay.js"
+        "src/base-info.js",
+        "src/showAlert.js",
+        "src/metrics/aec-delay.js",
+        "src/metrics/error-code.js"
       ],
       "matches": [
         "<all_urls>"
