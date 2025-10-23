@@ -82,7 +82,7 @@ function getIssueDisplayName(issueType) {
       script.onload = () => {
         loadedCount++;
         console.log(`✅ 模块加载完成: ${modulePath} (${loadedCount}/${modules.length})`);
-        if (modulePath === 'src/metrics/base-info.js') {
+        if (modulePath === 'src/base-info.js') {
           console.log('🔍 检查 base-info.js 暴露的函数:', {
             getSDKClientRole: typeof window.getSDKClientRole,
             getRoleDisplayText: typeof window.getRoleDisplayText,
@@ -133,7 +133,7 @@ function getIssueDisplayName(issueType) {
 async function updateBaseInfoWithES6(responseText) {
   try {
     // 使用 ES6 动态 import 导入模块
-    const baseInfoModule = await import(chrome.runtime.getURL('src/metrics/base-info.js'));
+    const baseInfoModule = await import(chrome.runtime.getURL('src/base-info.js'));
     
     console.log('✅ ES6 动态 import 成功');
     console.log('📝 导入的模块:', baseInfoModule);

@@ -58,7 +58,7 @@ function getIssueDisplayName(issueType) {
   const modules = [
     'issue-rules.js',
     'src/metrics/showAlert.js',
-    'src/metrics/base-info.js',
+    'src/base-info.js',
     'src/metrics/metrics-utils.js',
     'src/metrics/aec-delay.js',
     'src/metrics/signal-level.js',
@@ -77,7 +77,7 @@ function getIssueDisplayName(issueType) {
       script.src = chrome.runtime.getURL(modulePath);
 
       // 对于 issue-rules.js、showAlert.js 和 base-info.js，使用普通脚本类型，其他模块使用 ES6 模块类型
-      if (modulePath === 'issue-rules.js' || modulePath === 'src/metrics/showAlert.js' || modulePath === 'src/metrics/base-info.js') {
+      if (modulePath === 'issue-rules.js' || modulePath === 'src/showAlert.js' || modulePath === 'src/base-info.js') {
         script.type = 'text/javascript';
       } else {
         script.type = 'module';
@@ -86,7 +86,7 @@ function getIssueDisplayName(issueType) {
       script.onload = () => {
         loadedCount++;
         console.log(`✅ 模块加载完成: ${modulePath} (${loadedCount}/${modules.length})`);
-        if (modulePath === 'src/metrics/base-info.js') {
+        if (modulePath === 'src/base-info.js') {
           console.log('🔍 检查 base-info.js 暴露的函数:', {
             getSDKClientRole: typeof window.getSDKClientRole,
             getRoleDisplayText: typeof window.getRoleDisplayText,

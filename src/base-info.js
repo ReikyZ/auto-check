@@ -62,6 +62,86 @@ export const getRoleDisplayText = (roleValue) => {
 };
 
 /**
+ * 获取 SDK Mute Status Bit Based 值
+ * @param {string} responseText - 响应文本
+ * @returns {number|null} mute 状态值
+ */
+export const getSDKMuteStatus = (responseText) => {
+  if (!responseText || typeof responseText !== 'string') {
+    console.warn('getSDKMuteStatus: responseText 不是有效的字符串');
+    return null;
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(responseText);
+  } catch (e) {
+    console.warn('getSDKMuteStatus: responseText 不是有效的 JSON');
+    return null;
+  }
+
+  // 遍历数据结构查找 "SDK Mute Status Bit based" (注意首字母小写)
+  for (const item of Array.isArray(parsed) ? parsed : []) {
+    if (item && Array.isArray(item.data)) {
+      for (const counter of item.data) {
+        if (
+          counter &&
+          typeof counter.name === 'string' &&
+          counter.name.trim() === 'SDK Mute Status Bit based' &&
+          Array.isArray(counter.data)
+        ) {
+          // 找到第一个非null、非undefined的值
+          for (let i = 0; i < counter.data.length; i++) {
+            const dataItem = counter.data[i];
+            const value = Array.isArray(dataItem) ? dataItem[1] : dataItem;
+            if (value !== null && value !== undefined) {
+              console.log('找到 SDK Mute Status Bit Based 值:', value);
+              return value;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  console.warn('未找到 SDK Mute Status Bit based 数据');
+  return null;
+};
+
+/**
+ * 获取 mute 状态显示文本
+ * @param {number} muteStatus - mute 状态值
+ * @returns {string} mute 状态显示文本
+ */
+export const getMuteStatusDisplayText = (muteStatus) => {
+  if (muteStatus === null || muteStatus === undefined) {
+    return '未知';
+  }
+
+  if (muteStatus === 0) {
+    return '无静音';
+  }
+
+  const statusList = [];
+  
+  // 检查各个位标志
+  if (muteStatus & 1) {
+    statusList.push('静音本地音频');
+  }
+  if (muteStatus & 2) {
+    statusList.push('静音远端音频');
+  }
+  if (muteStatus & 4) {
+    statusList.push('静音本地视频');
+  }
+  if (muteStatus & 8) {
+    statusList.push('静音远端视频');
+  }
+
+  return statusList.length > 0 ? statusList.join(' & ') : '无静音';
+};
+
+/**
  * 更新 base-info 区域的内容
  * @param {string} responseText - 响应文本
  */
@@ -103,6 +183,9 @@ export const updateBaseInfo = (responseText) => {
   // 提取角色信息
   const roleValue = getSDKClientRole(responseText);
   
+  // 提取 mute 状态信息
+  const muteStatus = getSDKMuteStatus(responseText);
+  
   // 构建基本信息内容（使用 ES6 模板字符串）
   let baseInfoHTML = '<h4>基本信息</h4>';
   
@@ -112,17 +195,32 @@ export const updateBaseInfo = (responseText) => {
   } else {
     baseInfoHTML += '<div class="info-item">⚠️ 未找到角色信息</div>';
   }
+  
+  if (muteStatus !== null) {
+    const muteText = getMuteStatusDisplayText(muteStatus);
+    const muteIcon = muteStatus === 0 ? '🔊' : '🔇';
+    baseInfoHTML += `<div class="info-item">${muteIcon} ${muteText}</div>`;
+  } else {
+    baseInfoHTML += '<div class="info-item">⚠️ 未找到 mute 状态信息</div>';
+  }
 
   // 更新内容
   baseInfoElement.innerHTML = baseInfoHTML;
   
-  console.log('✅ Base Info 已更新:', { roleValue, roleText: getRoleDisplayText(roleValue) });
+  console.log('✅ Base Info 已更新:', { 
+    roleValue, 
+    roleText: getRoleDisplayText(roleValue),
+    muteStatus,
+    muteText: getMuteStatusDisplayText(muteStatus)
+  });
 };
 
 // ES6 默认导出
 export default {
   getSDKClientRole,
   getRoleDisplayText,
+  getSDKMuteStatus,
+  getMuteStatusDisplayText,
   updateBaseInfo
 };
 
@@ -130,6 +228,8 @@ export default {
 if (typeof window !== 'undefined') {
   window.getSDKClientRole = getSDKClientRole;
   window.getRoleDisplayText = getRoleDisplayText;
+  window.getSDKMuteStatus = getSDKMuteStatus;
+  window.getMuteStatusDisplayText = getMuteStatusDisplayText;
   window.updateBaseInfo = updateBaseInfo;
 }
 
