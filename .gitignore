@@ -1,5 +1,25 @@
-/test
-.gitignore
+# 依赖
+node_modules/
+
+# 构建输出
+dist/
+
+# 日志
+*.log
+npm-debug.log*
+
+# 操作系统文件
 .DS_Store
-test-*
-ui.png
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 临时文件
+*.tmp
+*.temp
+*.md
+test*

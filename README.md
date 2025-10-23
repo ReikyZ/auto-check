@@ -43,26 +43,42 @@ auto-check/
 
 ## 安装步骤
 
+### 开发环境设置
+
 1. **下载或克隆项目**
    ```bash
    git clone <repository-url>
    cd auto-check
    ```
 
-2. **准备图标文件**
+2. **安装依赖**
+   ```bash
+   npm install
+   ```
+
+3. **构建项目**
+   ```bash
+   # 开发模式（监听文件变化）
+   npm run dev
+   
+   # 生产构建
+   npm run build
+   ```
+
+4. **准备图标文件**
    - 在`icons/`文件夹中放置以下尺寸的图标：
      - `icon16.png` (16x16像素)
      - `icon48.png` (48x48像素) 
      - `icon128.png` (128x128像素)
 
-3. **加载到Chrome**
+5. **加载到Chrome**
    - 打开Chrome浏览器
    - 访问 `chrome://extensions/`
    - 开启"开发者模式"
    - 点击"加载已解压的扩展程序"
-   - 选择项目文件夹
+   - 选择项目的 **`dist`** 目录（构建后的文件）
 
-4. **验证安装**
+6. **验证安装**
    - 扩展程序图标应出现在工具栏中
    - 访问包含`info_right`元素的页面
    - 应该能看到"Auto Check"按钮出现在右侧
@@ -167,17 +183,75 @@ button.innerHTML = '您的自定义文本';
 - 支持所有网站
 - 响应式设计
 
+## ES6 语法支持
+
+项目现在支持完整的 ES6+ 语法：
+
+- ✅ `const` 和 `let`
+- ✅ 箭头函数 `() => {}`
+- ✅ 模板字符串 `` `Hello ${name}` ``
+- ✅ 解构赋值 `const {a, b} = obj`
+- ✅ 默认参数 `function foo(a = 1) {}`
+- ✅ 扩展运算符 `...array`
+- ✅ 异步/等待 `async/await`
+- ✅ Promise
+- ✅ 类和模块系统
+- ✅ 导入/导出 `import/export`
+
+代码会自动通过 Babel 转换以确保浏览器兼容性。
+
 ## 开发说明
+
+### 项目结构
+```
+auto-check/
+├── src/              # 源代码目录（编写 ES6 代码）
+│   ├── background.js
+│   ├── content.js
+│   └── popup.js
+├── dist/             # 构建输出目录（自动生成）
+├── metrics/          # 指标分析模块
+├── icons/            # 扩展图标
+├── libs/             # 第三方库
+├── manifest.json     # Chrome 扩展配置
+├── popup.html        # Popup 页面
+├── styles.css        # 样式文件
+├── webpack.config.js # Webpack 配置
+├── .babelrc          # Babel 配置
+└── package.json      # NPM 配置
+```
+
+### 开发工作流
+
+1. **编写源代码**
+   - 在 `src/` 目录中编写代码
+   - 使用 ES6+ 语法
+
+2. **自动构建**
+   - 运行 `npm run dev` 启动开发模式
+   - 修改代码后自动重新构建
+
+3. **加载扩展**
+   - 在 Chrome 中加载 `dist` 目录
+   - 刷新扩展以查看更改
+
+4. **调试**
+   - 打开 Chrome 开发者工具
+   - 查看 Console 面板的输出信息
+   - 检查 Elements 面板确认按钮是否正确注入
 
 ### 调试方法
 1. 打开Chrome开发者工具
 2. 查看Console面板的输出信息
 3. 检查Elements面板确认按钮是否正确注入
+4. 使用 Chrome DevTools 的 Sources 面板调试构建后的代码
 
 ### 常见问题
 1. **按钮未显示**: 确保页面包含`.info_right`元素
 2. **样式异常**: 检查CSS文件是否正确加载
 3. **功能不工作**: 查看Console中的错误信息
+4. **构建失败**: 确保所有依赖已安装 `npm install`
+5. **ES6 语法错误**: 检查 `.babelrc` 配置是否正确
 
 ## 许可证
 

@@ -76,8 +76,12 @@ function getIssueDisplayName(issueType) {
       const script = document.createElement('script');
       script.src = chrome.runtime.getURL(modulePath);
 
-      // 使用 ES6 模块类型加载
-      script.type = 'module';
+      // 对于 issue-rules.js、showAlert.js 和 base-info.js，使用普通脚本类型，其他模块使用 ES6 模块类型
+      if (modulePath === 'issue-rules.js' || modulePath === 'metrics/showAlert.js' || modulePath === 'metrics/base-info.js') {
+        script.type = 'text/javascript';
+      } else {
+        script.type = 'module';
+      }
 
       script.onload = () => {
         loadedCount++;
@@ -128,37 +132,6 @@ function getIssueDisplayName(issueType) {
     return modulesLoaded;
   };
 })();
-
-// ES6 动态 import 辅助函数
-async function updateBaseInfoWithES6(responseText) {
-  try {
-    // 使用 ES6 动态 import 导入模块
-    const baseInfoModule = await import(chrome.runtime.getURL('metrics/base-info.js'));
-    
-    console.log('✅ ES6 动态 import 成功');
-    console.log('📝 导入的模块:', baseInfoModule);
-    console.log('📝 updateBaseInfo 类型:', typeof baseInfoModule.updateBaseInfo);
-    
-    if (responseText && typeof baseInfoModule.updateBaseInfo === 'function') {
-      console.log('✅ 使用 ES6 方式调用 updateBaseInfo');
-      baseInfoModule.updateBaseInfo(responseText);
-    } else {
-      console.warn('⚠️ ES6 模块中 updateBaseInfo 不可用');
-      // 降级使用 window 方式
-      if (typeof window.updateBaseInfo === 'function') {
-        console.log('⚠️ 降级使用 window.updateBaseInfo');
-        window.updateBaseInfo(responseText);
-      }
-    }
-  } catch (error) {
-    console.error('❌ ES6 动态 import 失败:', error);
-    // 降级使用 window 方式
-    if (typeof window.updateBaseInfo === 'function') {
-      console.log('⚠️ 降级使用 window.updateBaseInfo');
-      window.updateBaseInfo(responseText);
-    }
-  }
-}
 
 // 将 Chart.js 加载函数暴露到全局作用域，供模块使用
 window.loadChartJs = loadChartJs;
@@ -485,8 +458,20 @@ async function performAutoCheck(scopeRoot = document, scopeIndex = undefined) {
       responseText = await fecthResponse(uidValues[0].value);
       // console.log('response:', responseText);
       
-      // 更新基本信息（角色信息等）- 使用 ES6 动态 import
-      await updateBaseInfoWithES6(responseText);
+      // 更新基本信息（角色信息等）
+      console.log('检查 updateBaseInfo 是否可用:', typeof window.updateBaseInfo);
+      console.log('检查 globalThis.updateBaseInfo 是否可用:', typeof globalThis.updateBaseInfo);
+      console.log('模块加载状态:', window.modulesLoaded);
+      
+      const updateBaseInfoFn = window.updateBaseInfo || globalThis.updateBaseInfo;
+      
+      if (responseText && typeof updateBaseInfoFn === 'function') {
+        console.log('调用 updateBaseInfo');
+        updateBaseInfoFn(responseText);
+      } else {
+        console.warn('updateBaseInfo 函数不可用，跳过更新');
+        console.warn('可能原因：模块尚未加载完成或加载失败');
+      }
     }
     
     // 拿到响应后再执行分析
@@ -1350,10 +1335,8 @@ function showAecDelayAnalysis(response) {
     // 只获取真实数据，不生成模拟数据
     if (typeof showAlert === 'function') {
       showAlert('显示AEC Delay分析弹窗');
-      console.log('showAlert', showAlert);
     } else {
       showNotification('显示AEC Delay分析弹窗', 'info');
-      console.log('showNotification', showNotification);
     }
     
     const aecDelayData = getAecDelayData(response);

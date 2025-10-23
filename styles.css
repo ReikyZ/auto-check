@@ -86,6 +86,10 @@
   background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
 }
 
+.auto-check-notification.warning {
+  background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+}
+
 /* 确保按钮在info_right区域内正确显示 */
 .info_right .auto-check-container {
   vertical-align: middle;
