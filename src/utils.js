@@ -135,6 +135,67 @@ export const throttle = (func, limit) => {
   };
 };
 
+/**
+ * 计算平均延迟
+ * @param {Array} data - 数据点数组
+ * @returns {number} 平均延迟值
+ */
+export const calculateAverageDelay = (data) => {
+  const validData = data.filter(point => point.value !== null && point.value !== undefined);
+  if (validData.length === 0) return 0;
+  
+  const sum = validData.reduce((acc, point) => acc + point.value, 0);
+  return Math.round(sum / validData.length);
+};
+
+/**
+ * 计算最大延迟
+ * @param {Array} data - 数据点数组
+ * @returns {number} 最大延迟值
+ */
+export const calculateMaxDelay = (data) => {
+  const validData = data.filter(point => point.value !== null && point.value !== undefined);
+  if (validData.length === 0) return 0;
+  
+  return Math.max(...validData.map(point => point.value));
+};
+
+/**
+ * 计算变化次数
+ * @param {Array} data - 数据点数组
+ * @returns {number} 变化次数
+ */
+export const calculateChangeCount = (data) => {
+  const validData = data.filter(point => point.value !== null && point.value !== undefined);
+  if (validData.length <= 1) return 0;
+  
+  let count = 0;
+  for (let i = 1; i < validData.length; i++) {
+    if (validData[i].value !== validData[i-1].value) {
+      count++;
+    }
+  }
+  return count;
+};
+
+/**
+ * 计算变化频率
+ * @param {Array} data - 数据点数组
+ * @returns {string} 变化频率字符串
+ */
+export const calculateChangeFrequency = (data) => {
+  const validData = data.filter(point => point.value !== null && point.value !== undefined);
+  if (validData.length <= 1) return '0';
+  
+  const changeCount = calculateChangeCount(data);
+  const timestamps = validData.map(point => point.timestamp);
+  const minTs = Math.min(...timestamps);
+  const maxTs = Math.max(...timestamps);
+  const durationSec = (maxTs - minTs) > 0 ? (maxTs - minTs) / 1000 : 0;
+  
+  return durationSec > 0 ? (changeCount / durationSec).toFixed(3) + '/s' : '0';
+};
+
 // ES6 默认导出
 export default {
   showNotification,
@@ -146,7 +207,11 @@ export default {
   delay,
   copyToClipboard,
   debounce,
-  throttle
+  throttle,
+  calculateAverageDelay,
+  calculateMaxDelay,
+  calculateChangeCount,
+  calculateChangeFrequency
 };
 
 // 同时暴露到全局作用域以保持兼容性
@@ -156,6 +221,10 @@ if (typeof window !== 'undefined') {
   window.showError = showError;
   window.showInfo = showInfo;
   window.showWarning = showWarning;
+  window.calculateAverageDelay = calculateAverageDelay;
+  window.calculateMaxDelay = calculateMaxDelay;
+  window.calculateChangeCount = calculateChangeCount;
+  window.calculateChangeFrequency = calculateChangeFrequency;
 }
 
 console.log('✅ utils.js ES6 模块已加载');

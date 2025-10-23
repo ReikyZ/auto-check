@@ -49,7 +49,6 @@ export const getSDKClientRole = (responseText) => {
     return null;
   }
   
-  console.log('找到 SDK Client Role 值:', values);
   return values;
 };
 
@@ -132,7 +131,6 @@ export const getSDKMuteStatus = (responseText) => {
     return null;
   }
   
-  console.log('找到 SDK Mute Status Bit Based 值:', values);
   return values;
 };
 

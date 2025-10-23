@@ -18,7 +18,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js","src/metrics/aec-delay.js"],
+      "js": ["content.js"],
       "css": ["styles.css"],
       "run_at": "document_end"
     }
@@ -38,9 +38,7 @@
         "libs/chart.umd.js",
         "src/*.js",
         "src/metrics/*.js",
-        "issue-rules.js",
         "src/base-info.js",
-        "src/showAlert.js",
         "src/metrics/aec-delay.js",
         "src/metrics/error-code.js"
       ],

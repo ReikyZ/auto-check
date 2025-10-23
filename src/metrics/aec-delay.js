@@ -2,12 +2,10 @@
  * AEC Delay 指标分析模块
  * 负责处理 Audio AEC Delay 相关的所有分析功能
  * ES6 模块版本
+ * 
+ * 注意：此模块仅专注于 AEC Delay 数据处理，不依赖其他 metrics 模块
+ * 各个模块之间的协调由 content.js 负责
  */
-
-// 导入其他模块
-import { getAudioSignalLevelNearinData, generateMockAudioSignalLevelNearinData } from './signal-level.js';
-import { getARecordSignalVolumeData, generateMockARecordSignalVolumeData } from './record-volume.js';
-import { generateMockMetricData, prepareChartData } from './metrics-utils.js';
 
 // ES6 箭头函数导出 - 查找AEC Delay数据
 export const findAecDelayData = (countersData) => {
@@ -19,34 +17,8 @@ export const findAecDelayData = (countersData) => {
   return null;
 }
 
-// ES6 箭头函数导出 - 显示AEC Delay分析弹窗
-export const showAecDelayAnalysis = async (response) => {
-  // 加载Chart.js库
-  loadChartJs().then(async () => {
-    // 获取真实数据，不生成模拟数据，ErrorCode 使用 ES6 动态 import 调用
-    const aecDelayData = getAecDelayData(response);
-    const signalLevelData = getAudioSignalLevelNearinData(response);
-    const recordSignalVolumeData = getARecordSignalVolumeData(response);
-    
-    // 动态导入 error-code 模块
-    const errorCodeModule = await import('./error-code.js');
-    const errorCodeData = errorCodeModule.getChatEngineErrorData(response);
-
-    if (window.Chart) {
-      createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData);
-    } else {
-      createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData);
-    }
-  }).catch(error => {
-    console.error('加载Chart.js失败:', error);
-    // 即使失败也显示备用图表
-    const aecDelayData = generateMockAecDelayData();
-    const signalLevelData = generateMockAudioSignalLevelNearinData();
-    const recordSignalVolumeData = generateMockARecordSignalVolumeData();
-    const errorCodeData = null;
-    createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData);
-  });
-}
+// 注意：showAecDelayAnalysis 函数已移除
+// 组合多个指标的显示应由 content.js 负责协调各个模块调用
 
 // ES6 箭头函数导出
 export const generateAecDelayDataFromParsed = (parsed) => {
@@ -107,9 +79,58 @@ export const getAecDelayData = (responseText) => {
   return null;
 }
 
-// ES6 箭头函数导出 - 生成模拟的AEC Delay数据（保持向后兼容）
-export const generateMockAecDelayData = () => {
-  return generateMockMetricData('Audio AEC Delay');
+// ES6 箭头函数导出 - 生成模拟的AEC Delay数据
+export const generateMockAecDelayData = (dataPoints = 50) => {
+  const baseTime = Date.now();
+  const data = [];
+  const valueRange = [5, 150];
+  const baseValue = 50;
+  const variation = 20;
+
+  for (let i = 0; i < dataPoints; i++) {
+    const timestamp = baseTime + (i * 2000);
+    let value = baseValue;
+
+    if (i < dataPoints * 0.2) {
+      value = valueRange[0] + Math.random() * (valueRange[1] - valueRange[0]) * 0.3;
+    } else if (i < dataPoints * 0.6) {
+      value = valueRange[0] + Math.random() * (valueRange[1] - valueRange[0]) * 0.8;
+    } else if (i < dataPoints * 0.8) {
+      value = valueRange[0] + Math.random() * (valueRange[1] - valueRange[0]);
+    } else {
+      value = valueRange[0] + Math.random() * (valueRange[1] - valueRange[0]) * 0.4;
+    }
+
+    value += (Math.random() - 0.5) * variation;
+    value = Math.max(valueRange[0], Math.min(valueRange[1], value));
+
+    data.push({
+      timestamp: timestamp,
+      value: Math.round(value)
+    });
+  }
+
+  return {
+    name: 'Audio AEC Delay',
+    counterId: 5,
+    data: data
+  };
+}
+
+// ES6 箭头函数导出 - 准备图表数据
+export const prepareChartData = (data) => {
+  if (!data || !Array.isArray(data)) {
+    return { labels: [], values: [] };
+  }
+
+  const sortedData = data.sort((a, b) => a.timestamp - b.timestamp);
+  const labels = sortedData.map(point => {
+    const date = new Date(point.timestamp);
+    return date.toLocaleTimeString();
+  });
+  const values = sortedData.map(point => point.value);
+
+  return { labels, values };
 }
 
 // ES6 箭头函数导出 - 显示AEC Delay曲线图
@@ -263,33 +284,15 @@ export const createAecDelayChart = (aecDelayData) => {
     });
   }
 
-  // 4) 导出与刷新
-  window.exportChartData = () => {
-    const csvData = aecDelayData.data.map(point =>
-      `${new Date(point.timestamp).toISOString()},${point.value}`
-    ).join('\n');
-    const csvContent = '时间戳,延迟值(ms)\n' + csvData;
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `aec-delay-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-    showNotification('AEC Delay数据已导出', 'success');
-  };
-
-  // 5) 添加刷新按钮
-  addRefreshButton();
 }
 
 // ES6 默认导出
 export default {
   findAecDelayData,
-  showAecDelayAnalysis,
   generateAecDelayDataFromParsed,
   getAecDelayData,
   generateMockAecDelayData,
+  prepareChartData,
   showAecDelayChart,
   createAecDelayChart
 };
@@ -298,10 +301,10 @@ export default {
 if (typeof window !== 'undefined') {
   window.AecDelayMetrics = {
     findAecDelayData,
-    showAecDelayAnalysis,
     generateAecDelayDataFromParsed,
     getAecDelayData,
     generateMockAecDelayData,
+    prepareChartData,
     showAecDelayChart,
     createAecDelayChart
   };

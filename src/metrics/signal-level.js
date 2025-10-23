@@ -2,10 +2,10 @@
  * Signal Level 指标分析模块
  * 负责处理 Audio Signal Level Nearin 相关的所有分析功能
  * ES6 模块版本
+ * 
+ * 注意：此模块仅专注于 Signal Level 数据处理，不依赖其他 metrics 模块
+ * 各个模块之间的协调由 content.js 负责
  */
-
-// 导入 metrics-utils 模块的函数
-import { generateMockMetricData, prepareChartData } from './metrics-utils.js';
 
 // ES6 箭头函数导出
 export const getAudioSignalLevelNearinData = (responseText) => {
@@ -43,9 +43,58 @@ export const getAudioSignalLevelNearinData = (responseText) => {
   return null;
 }
 
-// ES6 箭头函数导出 - 生成模拟的 Audio Signal Level Nearin 数据（保持向后兼容）
-export const generateMockAudioSignalLevelNearinData = () => {
-  return generateMockMetricData('Audio Signal Level Nearin');
+// ES6 箭头函数导出 - 生成模拟的 Audio Signal Level Nearin 数据
+export const generateMockAudioSignalLevelNearinData = (dataPoints = 50) => {
+  const baseTime = Date.now();
+  const data = [];
+  const valueRange = [10, 100];
+  const baseValue = 60;
+  const variation = 15;
+
+  for (let i = 0; i < dataPoints; i++) {
+    const timestamp = baseTime + (i * 2000);
+    let value = baseValue;
+
+    if (i < dataPoints * 0.2) {
+      value = valueRange[0] + Math.random() * (valueRange[1] - valueRange[0]) * 0.3;
+    } else if (i < dataPoints * 0.6) {
+      value = valueRange[0] + Math.random() * (valueRange[1] - valueRange[0]) * 0.8;
+    } else if (i < dataPoints * 0.8) {
+      value = valueRange[0] + Math.random() * (valueRange[1] - valueRange[0]);
+    } else {
+      value = valueRange[0] + Math.random() * (valueRange[1] - valueRange[0]) * 0.4;
+    }
+
+    value += (Math.random() - 0.5) * variation;
+    value = Math.max(valueRange[0], Math.min(valueRange[1], value));
+
+    data.push({
+      timestamp: timestamp,
+      value: Math.round(value)
+    });
+  }
+
+  return {
+    name: 'Audio Signal Level Nearin',
+    counterId: 6,
+    data: data
+  };
+}
+
+// ES6 箭头函数导出 - 准备图表数据
+export const prepareChartData = (data) => {
+  if (!data || !Array.isArray(data)) {
+    return { labels: [], values: [] };
+  }
+
+  const sortedData = data.sort((a, b) => a.timestamp - b.timestamp);
+  const labels = sortedData.map(point => {
+    const date = new Date(point.timestamp);
+    return date.toLocaleTimeString();
+  });
+  const values = sortedData.map(point => point.value);
+
+  return { labels, values };
 }
 
 // ES6 箭头函数导出 - 创建 Signal Level 图表
@@ -122,6 +171,7 @@ export const createSignalLevelChart = (signalLevelData) => {
 export default {
   getAudioSignalLevelNearinData,
   generateMockAudioSignalLevelNearinData,
+  prepareChartData,
   createSignalLevelChart
 };
 
@@ -130,6 +180,7 @@ if (typeof window !== 'undefined') {
   window.SignalLevelMetrics = {
     getAudioSignalLevelNearinData,
     generateMockAudioSignalLevelNearinData,
+    prepareChartData,
     createSignalLevelChart
   };
 }

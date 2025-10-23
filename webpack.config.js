@@ -39,7 +39,7 @@ module.exports = {
         { from: 'icons', to: 'icons' },
         { from: 'libs', to: 'libs' },
         { from: 'metrics', to: 'metrics' },
-        { from: 'issue-rules.js', to: 'issue-rules.js' }
+        { from: 'src/issue-rules.js', to: 'src/issue-rules.js' }
       ]
     })
   ],

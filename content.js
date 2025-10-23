@@ -50,14 +50,52 @@ function getIssueDisplayName(issueType) {
   return names[issueType] || issueType;
 }
 
+// 备用计算函数定义（在 src/utils.js 模块加载之前使用）
+// 这些函数在 src/utils.js 加载完成后会被覆盖
+window.calculateAverageDelay = function(data) {
+  const validData = data.filter(point => point.value !== null && point.value !== undefined);
+  if (validData.length === 0) return 0;
+  const sum = validData.reduce((acc, point) => acc + point.value, 0);
+  return Math.round(sum / validData.length);
+};
+
+window.calculateMaxDelay = function(data) {
+  const validData = data.filter(point => point.value !== null && point.value !== undefined);
+  if (validData.length === 0) return 0;
+  return Math.max(...validData.map(point => point.value));
+};
+
+window.calculateChangeCount = function(data) {
+  const validData = data.filter(point => point.value !== null && point.value !== undefined);
+  if (validData.length <= 1) return 0;
+  let count = 0;
+  for (let i = 1; i < validData.length; i++) {
+    if (validData[i].value !== validData[i-1].value) {
+      count++;
+    }
+  }
+  return count;
+};
+
+window.calculateChangeFrequency = function(data) {
+  const validData = data.filter(point => point.value !== null && point.value !== undefined);
+  if (validData.length <= 1) return '0';
+  const changeCount = window.calculateChangeCount(data);
+  const timestamps = validData.map(point => point.timestamp);
+  const minTs = Math.min(...timestamps);
+  const maxTs = Math.max(...timestamps);
+  const durationSec = (maxTs - minTs) > 0 ? (maxTs - minTs) / 1000 : 0;
+  return durationSec > 0 ? (changeCount / durationSec).toFixed(3) + '/s' : '0';
+};
+
 // 加载指标分析模块
 (function() {
   console.log('开始加载指标分析模块...');
 
   // 需要加载的模块列表
   const modules = [
-    'issue-rules.js',
-    'src/metrics/showAlert.js',
+    'src/utils.js',
+    'src/issue-rules.js',
     'src/base-info.js',
     'src/metrics/metrics-utils.js',
     'src/metrics/aec-delay.js',
@@ -277,7 +315,7 @@ function loadIssueRules() {
 
     // 动态加载规则表文件
     const script = document.createElement('script');
-    script.src = chrome.runtime.getURL('issue-rules.js');
+    script.src = chrome.runtime.getURL('src/issue-rules.js');
     script.onload = () => {
       console.log('问题类型规则表已加载');
       // 检查是否成功加载了规则表函数
@@ -285,7 +323,6 @@ function loadIssueRules() {
         console.log('外部规则表加载成功');
         resolve();
       } else {
-        console.warn('外部规则表加载但函数未定义，使用内联备用方案');
         loadInlineIssueRules();
         resolve();
       }
@@ -484,14 +521,12 @@ async function performAutoCheck(scopeRoot = document, scopeIndex = undefined) {
       }
       responseText = await fecthResponse(uidValues[0].value);
       // console.log('response:', responseText);
-      
-      // 更新基本信息（角色信息等）- 使用 ES6 动态 import
-      await updateBaseInfoWithES6(responseText);
     }
     
     // 拿到响应后再执行分析
     if (responseText) {
-      showAecDelayAnalysis(responseText);
+      // 创建图表并更新基本信息（showAecDelayAnalysis 内部会更新基本信息）
+      await showAecDelayAnalysis(responseText);
     } else {
       showNotification('未找到响应数据', 'error');
     }
@@ -1348,13 +1383,7 @@ async function showAecDelayAnalysis(response) {
   // 加载Chart.js库
   loadChartJs().then(async () => {
     // 只获取真实数据，不生成模拟数据
-    if (typeof showAlert === 'function') {
-      showAlert('显示AEC Delay分析弹窗');
-      console.log('showAlert', showAlert);
-    } else {
-      showNotification('显示AEC Delay分析弹窗', 'info');
-      console.log('showNotification', showNotification);
-    }
+    showNotification('显示AEC Delay分析弹窗', 'info');
     
     // 动态导入 ES6 模块
     const [aecDelayModule, signalLevelModule, recordVolumeModule, errorCodeModule] = await Promise.all([
@@ -1382,6 +1411,9 @@ async function showAecDelayAnalysis(response) {
     } else {
       createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData);
     }
+    
+    // 图表创建后立即更新基本信息
+    await updateBaseInfoWithES6(response);
   }).catch(error => {
     console.error('加载Chart.js失败:', error);
     showNotification('加载图表库失败', 'error');
@@ -1502,6 +1534,7 @@ function loadChartJsFallback() {
 
 // 创建组合音频分析图表
 function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData) {
+  console.log('createCombinedAudioAnalysisChart', aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData);
   // 保存数据到全局变量，以便后续动态访问
   window.metricDataCache = {
     'Audio AEC Delay': aecDelayData,
@@ -2416,7 +2449,6 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
   };
 
   // 刷新功能已移除，不再使用模拟数据
-
   showNotification('组合音频分析图表已生成', 'success');
 }
 
@@ -2706,50 +2738,8 @@ function addExampleMetrics() {
   });
 }
 
-// 计算平均延迟
-function calculateAverageDelay(data) {
-  const validData = data.filter(point => point.value !== null && point.value !== undefined);
-  if (validData.length === 0) return 0;
-  
-  const sum = validData.reduce((acc, point) => acc + point.value, 0);
-  return Math.round(sum / validData.length);
-}
-
-// 计算最大延迟
-function calculateMaxDelay(data) {
-  const validData = data.filter(point => point.value !== null && point.value !== undefined);
-  if (validData.length === 0) return 0;
-  
-  return Math.max(...validData.map(point => point.value));
-}
-
-// 计算变化次数
-function calculateChangeCount(data) {
-  const validData = data.filter(point => point.value !== null && point.value !== undefined);
-  if (validData.length <= 1) return 0;
-  
-  let count = 0;
-  for (let i = 1; i < validData.length; i++) {
-    if (validData[i].value !== validData[i-1].value) {
-      count++;
-    }
-  }
-  return count;
-}
-
-// 计算变化频率
-function calculateChangeFrequency(data) {
-  const validData = data.filter(point => point.value !== null && point.value !== undefined);
-  if (validData.length <= 1) return '0';
-  
-  const changeCount = calculateChangeCount(data);
-  const timestamps = validData.map(point => point.timestamp);
-  const minTs = Math.min(...timestamps);
-  const maxTs = Math.max(...timestamps);
-  const durationSec = (maxTs - minTs) > 0 ? (maxTs - minTs) / 1000 : 0;
-  
-  return durationSec > 0 ? (changeCount / durationSec).toFixed(3) + '/s' : '0';
-}
+// 计算平均延迟、最大延迟、变化次数、变化频率函数已移至 src/utils.js
+// 使用全局作用域的函数：calculateAverageDelay, calculateMaxDelay, calculateChangeCount, calculateChangeFrequency
 
 // 更新图表统计信息
 function updateChartStats(data) {
@@ -4124,43 +4114,16 @@ function createDataTable(data, containerId = 'dataTable') {
 }
 
 // 显示通知
-function showNotification(message, type = 'info') {
-  // 创建通知元素
-  const notification = document.createElement('div');
-  notification.className = `auto-check-notification ${type}`;
-  notification.textContent = message;
-  
-  // 添加到页面
-  document.body.appendChild(notification);
-  
-  // 显示动画
-  setTimeout(() => {
-    notification.classList.add('show');
-  }, 100);
-  
-  // 3秒后移除
-  setTimeout(() => {
-    notification.classList.remove('show');
-    setTimeout(() => {
-      if (notification.parentNode) {
-        notification.parentNode.removeChild(notification);
-      }
-    }, 300);
-  }, 3000);
+async function showNotification(message, type = 'info') {
+  const utilsModule = await import(chrome.runtime.getURL('src/utils.js'));
+  utilsModule.showNotification(message, type);
 }
 
 // 主函数：注入Auto Check按钮到所有info_right元素
-async function injectAutoCheckButton() {
+function injectAutoCheckButton() {
   try {
-    // 等待info_right元素出现
-    const infoRightElements = await waitForAllElements('.info_right');
-    
-    if (infoRightElements.length === 0) {
-      console.log('未找到info_right元素');
-      return;
-    }
-    
-    console.log(`找到${infoRightElements.length}个info_right元素`);
+    // 查找所有info_right元素
+    const infoRightElements = document.querySelectorAll('.info_right');
     
     // 为每个info_right元素添加按钮
     infoRightElements.forEach((infoRight, index) => {

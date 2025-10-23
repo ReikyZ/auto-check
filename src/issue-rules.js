@@ -305,3 +305,4 @@ if (typeof window !== 'undefined') {
   window.getRulesStatistics = getRulesStatistics;
   window.IssueRulesDebug = IssueRulesDebug;
 }
+

@@ -2,19 +2,104 @@
  * Record Volume 指标分析模块
  * 负责处理 A RECORD SIGNAL VOLUME 相关的所有分析功能
  * ES6 模块版本
+ * 
+ * 注意：此模块仅专注于 Record Volume 数据处理，不依赖其他 metrics 模块
+ * 各个模块之间的协调由 content.js 负责
  */
 
-// 导入 metrics-utils 模块的函数
-import { getMetricData, generateMockMetricData, prepareChartData } from './metrics-utils.js';
+// ES6 箭头函数导出 - 获取指标数据（通用函数）
+const getMetricData = (responseText, metricName) => {
+  if (!responseText || typeof responseText !== 'string') return null;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(responseText);
+  } catch (e) {
+    console.warn(`getMetricData: responseText 不是有效的 JSON (${metricName})`);
+    return null;
+  }
+
+  for (const item of Array.isArray(parsed) ? parsed : []) {
+    if (item && Array.isArray(item.data)) {
+      for (const counter of item.data) {
+        if (
+          counter &&
+          typeof counter.name === 'string' &&
+          counter.name.trim().toUpperCase() === metricName.toUpperCase() &&
+          Array.isArray(counter.data)
+        ) {
+          return {
+            name: counter.name,
+            counterId: counter.counter_id || counter.id || 7,
+            data: counter.data.map(arr => ({
+              timestamp: arr[0],
+              value: arr[1]
+            }))
+          };
+        }
+      }
+    }
+  }
+  return null;
+}
 
 // ES6 箭头函数导出
 export const getARecordSignalVolumeData = (responseText) => {
   return getMetricData(responseText, 'A RECORD SIGNAL VOLUME');
 }
 
-// ES6 箭头函数导出 - 生成模拟的 A RECORD SIGNAL VOLUME 数据（保持向后兼容）
-export const generateMockARecordSignalVolumeData = () => {
-  return generateMockMetricData('A RECORD SIGNAL VOLUME');
+// ES6 箭头函数导出 - 生成模拟的 A RECORD SIGNAL VOLUME 数据
+export const generateMockARecordSignalVolumeData = (dataPoints = 50) => {
+  const baseTime = Date.now();
+  const data = [];
+  const valueRange = [5, 95];
+  const baseValue = 50;
+  const variation = 25;
+
+  for (let i = 0; i < dataPoints; i++) {
+    const timestamp = baseTime + (i * 2000);
+    let value = baseValue;
+
+    if (i < dataPoints * 0.2) {
+      value = valueRange[0] + Math.random() * (valueRange[1] - valueRange[0]) * 0.3;
+    } else if (i < dataPoints * 0.6) {
+      value = valueRange[0] + Math.random() * (valueRange[1] - valueRange[0]) * 0.8;
+    } else if (i < dataPoints * 0.8) {
+      value = valueRange[0] + Math.random() * (valueRange[1] - valueRange[0]);
+    } else {
+      value = valueRange[0] + Math.random() * (valueRange[1] - valueRange[0]) * 0.4;
+    }
+
+    value += (Math.random() - 0.5) * variation;
+    value = Math.max(valueRange[0], Math.min(valueRange[1], value));
+
+    data.push({
+      timestamp: timestamp,
+      value: Math.round(value)
+    });
+  }
+
+  return {
+    name: 'A RECORD SIGNAL VOLUME',
+    counterId: 7,
+    data: data
+  };
+}
+
+// ES6 箭头函数导出 - 准备图表数据
+export const prepareChartData = (data) => {
+  if (!data || !Array.isArray(data)) {
+    return { labels: [], values: [] };
+  }
+
+  const sortedData = data.sort((a, b) => a.timestamp - b.timestamp);
+  const labels = sortedData.map(point => {
+    const date = new Date(point.timestamp);
+    return date.toLocaleTimeString();
+  });
+  const values = sortedData.map(point => point.value);
+
+  return { labels, values };
 }
 
 // ES6 箭头函数导出 - 创建 Record Volume 图表
@@ -220,6 +305,7 @@ export const createCombinedChart = (aecDelayData, signalLevelData, recordSignalV
 export default {
   getARecordSignalVolumeData,
   generateMockARecordSignalVolumeData,
+  prepareChartData,
   createRecordVolumeChart,
   createCombinedChart
 };
@@ -229,6 +315,7 @@ if (typeof window !== 'undefined') {
   window.RecordVolumeMetrics = {
     getARecordSignalVolumeData,
     generateMockARecordSignalVolumeData,
+    prepareChartData,
     createRecordVolumeChart,
     createCombinedChart
   };
