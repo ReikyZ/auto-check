@@ -58,7 +58,7 @@ function getIssueDisplayName(issueType) {
   const modules = [
     'issue-rules.js',
     'src/metrics/showAlert.js',
-    'src/metrics/base-info.js',
+    'src/base-info.js',
     'src/metrics/metrics-utils.js',
     'src/metrics/aec-delay.js',
     'src/metrics/signal-level.js',

@@ -38,7 +38,7 @@
         "libs/chart.umd.js",
         "metrics/*.js",
         "issue-rules.js",
-        "metrics/base-info.js",
+        "src/base-info.js",
         "metrics/showAlert.js",
         "metrics/aec-delay.js"
       ],
