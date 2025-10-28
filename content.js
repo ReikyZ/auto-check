@@ -2966,6 +2966,11 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
           ` : ''}
         </div>
       </div>
+      <div class="feedback-section">
+        <button class="feedback-btn useful-btn">👍有用</button>
+        <input type="text" class="feedback-input" placeholder="💬需求/改进...">
+        <button class="feedback-btn submit-btn">💬反馈</button>
+      </div>
     </div>
   `;
 
@@ -3599,6 +3604,67 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
         .combined-audio-analysis-container .data-tables {
           flex-direction: column;
         }
+        
+        .combined-audio-analysis-container .feedback-section {
+          flex-direction: column;
+          gap: 10px;
+        }
+        
+        .combined-audio-analysis-container .feedback-input {
+          width: 100%;
+        }
+      }
+      
+      /* 反馈区域样式 */
+      .combined-audio-analysis-container .feedback-section {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 15px 20px;
+        border-top: 1px solid #e9ecef;
+        background: #f8f9fa;
+      }
+      
+      .combined-audio-analysis-container .feedback-btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      
+      .combined-audio-analysis-container .feedback-btn.useful-btn {
+        background: #667eea;
+        color: white;
+      }
+      
+      .combined-audio-analysis-container .feedback-btn.useful-btn:hover {
+        background: #5568d3;
+      }
+      
+      .combined-audio-analysis-container .feedback-btn.submit-btn {
+        background: #28a745;
+        color: white;
+      }
+      
+      .combined-audio-analysis-container .feedback-btn.submit-btn:hover {
+        background: #218838;
+      }
+      
+      .combined-audio-analysis-container .feedback-input {
+        flex: 1;
+        padding: 8px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 6px;
+        font-size: 14px;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      
+      .combined-audio-analysis-container .feedback-input:focus {
+        border-color: #667eea;
       }
     `;
     document.head.appendChild(style);
