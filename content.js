@@ -633,37 +633,67 @@ function collectUidValues(userInfoContainer) {
   
   console.log('在指定的 user-info 容器中查找 uid 元素:', container);
   
-  // 在指定的 user-info 容器中查找 uid 元素
-  const uidElements = container.querySelectorAll('.uid');
-  
-  uidElements.forEach((element, elementIndex) => {
-    let value = element.textContent || element.innerText || element.value || '';
-    const tagName = element.tagName.toLowerCase();
-    const className = element.className;
-    const id = element.id || '';
-    
-    // 智能提取 UID 值
-    value = extractUidValue(value, element);
-    
-    // 获取父容器的信息
-    const containerInfo = {
-      containerIndex: 1, // 只有一个容器
-      containerId: container.id || '',
-      containerClasses: container.className
-    };
-    
-    uidValues.push({
-      index: uidValues.length + 1,
-      value: value.trim(),
-      tagName: tagName,
-      className: className,
-      id: id,
-      element: element,
-      containerInfo: containerInfo
+  // 优先查找 fetch-log 链接，从 href 中解析 uid
+  const fetchLogLinks = container.querySelectorAll('a.fetch-log');
+  if (fetchLogLinks.length > 0) {
+    fetchLogLinks.forEach((link) => {
+      const href = link.getAttribute('href');
+      if (href) {
+        // 从 URL 查询参数中提取 uid
+        const urlParams = new URLSearchParams(href.split('?')[1]);
+        const uid = urlParams.get('uid');
+        if (uid) {
+          uidValues.push({
+            index: uidValues.length + 1,
+            value: uid.trim(),
+            tagName: link.tagName.toLowerCase(),
+            className: link.className,
+            id: link.id || '',
+            element: link,
+            containerInfo: {
+              containerIndex: 1,
+              containerId: container.id || '',
+              containerClasses: container.className
+            }
+          });
+        }
+      }
     });
-  });
+  }
   
-  console.log(`在指定的 user-info 容器中找到 ${uidElements.length} 个 uid 元素:`, uidValues);
+  // 如果没有从 fetch-log 链接中找到 uid，则继续查找 .uid 元素
+  if (uidValues.length === 0) {
+    const uidElements = container.querySelectorAll('.uid');
+    
+    uidElements.forEach((element, elementIndex) => {
+      let value = element.textContent || element.innerText || element.value || '';
+      const tagName = element.tagName.toLowerCase();
+      const className = element.className;
+      const id = element.id || '';
+      
+      // 智能提取 UID 值
+      value = extractUidValue(value, element);
+      
+      // 获取父容器的信息
+      const containerInfo = {
+        containerIndex: 1, // 只有一个容器
+        containerId: container.id || '',
+        containerClasses: container.className
+      };
+      
+      uidValues.push({
+        index: uidValues.length + 1,
+        value: value.trim(),
+        tagName: tagName,
+        className: className,
+        id: id,
+        element: element,
+        containerInfo: containerInfo
+      });
+    });
+  }
+  
+  console.log(`在指定的 user-info 容器中找到 ${uidValues.length} 个 uid 元素:`, uidValues);
   return uidValues;
 }
 
