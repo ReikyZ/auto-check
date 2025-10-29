@@ -1433,7 +1433,6 @@ async function showAecDelayAnalysis(response) {
     // 如果没有数据，显示提示信息
     if (!aecDelayData && !signalLevelData && !recordSignalVolumeData && !errorCodeData) {
       showNotification('未找到音频分析数据', 'warning');
-      return;
     }
     
     if (window.Chart) {
@@ -3707,6 +3706,124 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
       window.switchTab(tabName);
     });
   });
+
+  // 为"有用"按钮添加烟花效果和POST请求
+  const usefulBtn = chartContainer.querySelector('.useful-btn');
+  if (usefulBtn) {
+    usefulBtn.addEventListener('click', function() {
+      createFireworks(this);
+      
+      // 点击后隐藏按钮
+      this.style.display = 'none';
+      
+      // 通过background script发送POST请求，避免证书问题
+      console.log('📤 发送反馈消息...');
+      chrome.runtime.sendMessage({
+        type: 'SEND_FEEDBACK',
+        data: {
+          timestamp: new Date().toISOString(),
+          action: 'useful'
+        }
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error('❌ 消息发送失败:', chrome.runtime.lastError.message);
+          return;
+        }
+        if (response && response.success) {
+          console.log('👍 有用反馈已发送:', response.data);
+        } else {
+          console.error('❌ 发送反馈失败:', response?.error || '未知错误');
+        }
+      });
+    });
+  }
+
+  // 为"反馈"按钮添加点击事件
+  const submitBtn = chartContainer.querySelector('.submit-btn');
+  if (submitBtn) {
+    submitBtn.addEventListener('click', function() {
+      const feedbackSection = this.closest('.feedback-section');
+      const feedbackInput = feedbackSection.querySelector('.feedback-input');
+      const feedbackText = feedbackInput.value.trim();
+      
+      if (feedbackText) {
+        // 发送反馈内容
+        console.log('📤 发送反馈消息:', feedbackText);
+        chrome.runtime.sendMessage({
+          type: 'SEND_FEEDBACK',
+          data: {
+            timestamp: new Date().toISOString(),
+            action: 'feedback',
+            content: feedbackText
+          }
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.error('❌ 消息发送失败:', chrome.runtime.lastError.message);
+            return;
+          }
+          if (response && response.success) {
+            console.log('👍 反馈已发送:', response.data);
+          } else {
+            console.error('❌ 发送反馈失败:', response?.error || '未知错误');
+          }
+        });
+      }
+      
+      // 向下消失动画
+      if (feedbackSection) {
+        feedbackSection.style.transition = 'transform 0.5s ease-out, opacity 0.5s ease-out';
+        feedbackSection.style.transform = 'translateY(100%)';
+        feedbackSection.style.opacity = '0';
+        
+        setTimeout(() => {
+          feedbackSection.style.display = 'none';
+        }, 500);
+      }
+    });
+  }
+
+  // 烟花效果函数
+  function createFireworks(button) {
+    const buttonRect = button.getBoundingClientRect();
+    const centerX = buttonRect.left + buttonRect.width / 2;
+    const centerY = buttonRect.top + buttonRect.height / 2;
+    
+    const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffa500'];
+    const particleCount = 50;
+    
+    for (let i = 0; i < particleCount; i++) {
+      const particle = document.createElement('div');
+      const angle = (Math.PI * 2 * i) / particleCount;
+      const velocity = 50 + Math.random() * 100;
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      
+      particle.style.position = 'fixed';
+      particle.style.left = centerX + 'px';
+      particle.style.top = centerY + 'px';
+      particle.style.width = '8px';
+      particle.style.height = '8px';
+      particle.style.backgroundColor = color;
+      particle.style.borderRadius = '50%';
+      particle.style.pointerEvents = 'none';
+      particle.style.zIndex = '10002';
+      particle.style.boxShadow = `0 0 10px ${color}`;
+      
+      document.body.appendChild(particle);
+      
+      const x = Math.cos(angle) * velocity;
+      const y = Math.sin(angle) * velocity;
+      
+      particle.animate([
+        { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+        { transform: `translate(${x}px, ${y}px) scale(0)`, opacity: 0 }
+      ], {
+        duration: 800 + Math.random() * 400,
+        easing: 'cubic-bezier(0.4, 0, 0.2, 1)'
+      }).onfinish = () => {
+        particle.remove();
+      };
+    }
+  }
 
   // 添加全局函数（updateIssueStatus 已在全局作用域定义）
   

@@ -70,6 +70,62 @@ function handleResponse(details) {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('Background收到消息:', message);
   
+  // 处理需要异步操作的消息
+  if (message.type === 'SEND_FEEDBACK') {
+    // 异步处理，立即返回 true 保持消息通道开放
+    (async () => {
+      // 根据action选择不同的URL
+      const action = message.data?.action;
+      let url;
+      
+      if (action === 'useful') {
+        url = 'https://cstool.reikyz.me:9443/good';
+      } else if (action === 'feedback') {
+        url = 'https://cstool.reikyz.me:9443/feedback';
+      } else {
+        url = 'https://10.83.3.3:8443/good';
+      }
+      
+      console.log(`正在发送反馈到 ${url}`);
+      
+      // 根据action决定请求体格式
+      let requestBody;
+      if (action === 'feedback') {
+        // 反馈请求体只包含输入内容
+        requestBody = JSON.stringify({ content: message.data?.content || '' });
+      } else {
+        // 其他请求体包含完整数据
+        requestBody = JSON.stringify(message.data || {});
+      }
+      
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: requestBody
+        });
+        
+        console.log('收到响应状态:', response.status);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('反馈发送成功:', data);
+        sendResponse({ success: true, data: data });
+      } catch (error) {
+        console.error('发送反馈失败:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    
+    return true; // 保持消息通道开放
+  }
+  
+  // 处理同步消息
   switch (message.type) {
     case 'START_NETWORK_MONITORING':
       startNetworkMonitoring();
@@ -101,7 +157,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({ success: false, message: '未知消息类型' });
   }
   
-  return true; // 保持消息通道开放
+  return true;
 });
 
 // 提取counters数据
