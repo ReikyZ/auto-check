@@ -327,11 +327,6 @@ const AUDIO_METRICS_CONFIG = {
 };
 
 
-// 获取所有指标配置
-function getAllMetricsConfig() {
-  return Object.values(AUDIO_METRICS_CONFIG);
-}
-
 // 根据指标名称获取配置
 function getMetricConfig(metricName) {
   return Object.values(AUDIO_METRICS_CONFIG).find(config => 
@@ -1486,25 +1481,6 @@ async function showAecDelayAnalysis(response) {
     console.error('加载Chart.js失败:', error);
     showNotification('加载图表库失败', 'error');
   });
-}
-
-function generateAecDelayDataFromParsed(parsed) {
-  // 期望结构: 数组 -> item.data(数组) -> counter.name === "Audio AEC Delay" 且 counter.data 数组 [timestamp, value]
-  if (!parsed || !Array.isArray(parsed)) return null;
-  for (const item of parsed) {
-    if (item && Array.isArray(item.data)) {
-      for (const counter of item.data) {
-        if (counter && counter.name === 'Audio AEC Delay' && Array.isArray(counter.data)) {
-          return {
-            name: counter.name,
-            counterId: counter.counter_id || 5,
-            data: counter.data.map(point => ({ timestamp: point[0], value: point[1] }))
-          };
-        }
-      }
-    }
-  }
-  return null;
 }
 
 // 这些函数已移动到 src/metrics 目录下的 ES6 模块中
@@ -2781,66 +2757,8 @@ function addNewMetric(metricKey, config) {
   console.log(`已添加新指标: ${config.name}`);
 }
 
-// 示例：如何添加新指标
-function addExampleMetrics() {
-  // 示例：添加音频质量指标
-  addNewMetric('AUDIO_QUALITY', {
-    name: 'Audio Quality Score',
-    displayName: '🎯 Audio Quality Score 统计',
-    counterId: 8,
-    color: '#9c27b0',
-    backgroundColor: 'linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%)',
-    borderColor: '#9c27b0',
-    icon: '🎯',
-    unit: '%',
-    description: '音频质量评分'
-  });
-  
-  // 示例：添加网络延迟指标
-  addNewMetric('NETWORK_LATENCY', {
-    name: 'Network Latency',
-    displayName: '🌐 Network Latency 统计',
-    counterId: 9,
-    color: '#ff9800',
-    backgroundColor: 'linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%)',
-    borderColor: '#ff9800',
-    icon: '🌐',
-    unit: 'ms',
-    description: '网络延迟'
-  });
-}
-
 // 计算平均延迟、最大延迟、变化次数、变化频率函数已移至 src/utils.js
 // 使用全局作用域的函数：calculateAverageDelay, calculateMaxDelay, calculateChangeCount, calculateChangeFrequency
-
-// 更新图表统计信息
-function updateChartStats(data) {
-  const statsContainer = document.querySelector('.chart-stats');
-  if (statsContainer) {
-    statsContainer.innerHTML = `
-      <div class="stat-item">
-        <span class="stat-label">数据点</span>
-        <span class="stat-value">${data.length}</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-label">平均延迟</span>
-        <span class="stat-value">${calculateAverageDelay(data)}ms</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-label">最大延迟</span>
-        <span class="stat-value">${calculateMaxDelay(data)}ms</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-label">变化次数</span>
-        <span class="stat-value">${calculateChangeCount(data)}</span>
-      </div>
-      <div class="stat-item">
-        <span class="stat-label">变化频率</span>
-        <span class="stat-value">${calculateChangeFrequency(data)}</span>
-      </div>
-    `;
-  }
-}
 
 // 创建组合备用图表（当Chart.js无法加载时使用）
 function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData, responseText) {
@@ -4303,92 +4221,6 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
   // 刷新功能已移除，不再使用模拟数据
 
   showNotification('组合音频分析已显示（简化模式）', 'success');
-}
-
-// 创建备用简化图表（当Chart.js无法加载时使用）
-function createFallbackChart(aecDelayData) {
-  console.log('使用备用图表显示AEC Delay数据');
-  
-  // 创建图表容器
-  const chartContainer = document.createElement('div');
-  chartContainer.className = 'aec-delay-chart-container fallback-chart';
-  chartContainer.innerHTML = `
-    <div class="chart-header">
-      <h3>📊 Audio AEC Delay 分析</h3>
-      <button class="close-chart" onclick="this.parentElement.parentElement.remove()">×</button>
-    </div>
-    <div class="chart-content">
-    </div>
-    <div class="chart-footer">
-      <div class="chart-stats">
-        <div class="stat-item">
-          <span class="stat-label">数据点</span>
-          <span class="stat-value">${aecDelayData.data.length}</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">平均延迟</span>
-          <span class="stat-value">${calculateAverageDelay(aecDelayData.data)}ms</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">最大延迟</span>
-          <span class="stat-value">${calculateMaxDelay(aecDelayData.data)}ms</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">变化次数</span>
-          <span class="stat-value">${calculateChangeCount(aecDelayData.data)}</span>
-        </div>
-        <div class="stat-item">
-          <span class="stat-label">变化频率</span>
-          <span class="stat-value">${calculateChangeFrequency(aecDelayData.data)}</span>
-        </div>
-      </div>
-    </div>
-  `;
-
-  // 添加样式
-  chartContainer.style.cssText = `
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 80%;
-    max-width: 700px;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
-    z-index: 10001;
-    overflow: hidden;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    animation: slideIn 0.3s ease-out;
-  `;
-
-  document.body.appendChild(chartContainer);
-
-  // 创建数据表格
-  createDataTable(aecDelayData.data);
-
-  // 添加全局函数
-  window.exportChartData = () => {
-    const csvData = aecDelayData.data.map(point => 
-      `${new Date(point.timestamp).toISOString()},${point.value}`
-    ).join('\n');
-    
-    const csvContent = '时间戳,延迟值(ms)\n' + csvData;
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `aec-delay-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
-    link.click();
-    
-    URL.revokeObjectURL(url);
-    showNotification('AEC Delay数据已导出', 'success');
-  };
-
-  // 刷新功能已移除，不再使用模拟数据
-
-  showNotification('AEC Delay分析已显示（简化模式）', 'success');
 }
 
 // 创建数据表格
