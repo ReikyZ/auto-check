@@ -196,6 +196,47 @@ export const calculateChangeFrequency = (data) => {
   return durationSec > 0 ? (changeCount / durationSec).toFixed(3) + '/s' : '0';
 };
 
+/**
+ * 从响应中提取指定指标的数据
+ * @param {string} responseText - 响应文本（JSON格式）
+ * @param {string} metricName - 指标名称
+ * @returns {Object|null} 指标数据对象，包含 name, counterId, data 属性
+ */
+export const extractMetricData = (responseText, metricName) => {
+  if (!responseText || typeof responseText !== 'string') return null;
+
+  let parsed;
+  try {
+    parsed = JSON.parse(responseText);
+  } catch (e) {
+    console.warn(`extractMetricData: responseText 不是有效的 JSON (${metricName})`);
+    return null;
+  }
+
+  for (const item of Array.isArray(parsed) ? parsed : []) {
+    if (item && Array.isArray(item.data)) {
+      for (const counter of item.data) {
+        if (
+          counter &&
+          typeof counter.name === 'string' &&
+          counter.name.trim().toUpperCase() === metricName.toUpperCase() &&
+          Array.isArray(counter.data)
+        ) {
+          return {
+            name: counter.name,
+            counterId: counter.counter_id || counter.id || 0,
+            data: counter.data.map(arr => ({
+              timestamp: arr[0],
+              value: arr[1]
+            }))
+          };
+        }
+      }
+    }
+  }
+  return null;
+};
+
 // ES6 默认导出
 export default {
   showNotification,
@@ -211,7 +252,8 @@ export default {
   calculateAverageDelay,
   calculateMaxDelay,
   calculateChangeCount,
-  calculateChangeFrequency
+  calculateChangeFrequency,
+  extractMetricData
 };
 
 // 同时暴露到全局作用域以保持兼容性
@@ -225,6 +267,7 @@ if (typeof window !== 'undefined') {
   window.calculateMaxDelay = calculateMaxDelay;
   window.calculateChangeCount = calculateChangeCount;
   window.calculateChangeFrequency = calculateChangeFrequency;
+  window.extractMetricData = extractMetricData;
 }
 
 console.log('✅ utils.js ES6 模块已加载');

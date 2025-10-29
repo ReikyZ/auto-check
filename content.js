@@ -8,6 +8,7 @@ window.updateIssueStatus = function(issueType, isChecked) {
       isNoSound: false,
       isLowLevel: false,
       isEcho: false,
+      isAudioStutter: false,
       isBlack: false
     };
   }
@@ -45,6 +46,7 @@ function getIssueDisplayName(issueType) {
     'isNoSound': '无声',
     'isLowLevel': '音量小',
     'isEcho': '回声',
+    'isAudioStutter': '音频卡顿',
     'isBlack': '黑屏'
   };
   return names[issueType] || issueType;
@@ -287,6 +289,40 @@ const AUDIO_METRICS_CONFIG = {
       isLowLevel: 1,
       isEcho: 1
     }
+  },
+  'AUDIO_PLAYBACK_FREQUENCY': {
+    name: 'Audio Playback Frequency',
+    displayName: '⏸️ Audio Playback Frequency 统计',
+    counterId: 13,
+    color: '#9c27b0',
+    backgroundColor: 'linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%)',
+    borderColor: '#9c27b0',
+    icon: '⏸️',
+    unit: 'Hz',
+    description: '音频播放频率',
+    issueTypes: {
+      isNoSound: 0,
+      isLowLevel: 0,
+      isEcho: 0,
+      isAudioStutter: 1
+    }
+  },
+  'AUDIO_DOWNLINK_PULL_TIME': {
+    name: 'AUDIO DOWNLINK PULL 10MS DATA TIME',
+    displayName: '📥 AUDIO DOWNLINK PULL 10MS DATA TIME 统计',
+    counterId: 728,
+    color: '#9c27b0',
+    backgroundColor: 'linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%)',
+    borderColor: '#9c27b0',
+    icon: '📥',
+    unit: 'ms',
+    description: '下行音频数据拉取时间',
+    issueTypes: {
+      isNoSound: 0,
+      isLowLevel: 0,
+      isEcho: 0,
+      isAudioStutter: 1
+    }
   }
 };
 
@@ -356,13 +392,16 @@ function loadInlineIssueRules() {
       isNoSound: { name: '无声', color: '#ff6b6b', icon: '🔇' },
       isLowLevel: { name: '音量小', color: '#ffa726', icon: '🔉' },
       isEcho: { name: '回声', color: '#f44336', icon: '🔊' },
+      isAudioStutter: { name: '音频卡顿', color: '#9c27b0', icon: '⏸️' },
       isBlack: { name: '黑屏', color: '#000000', icon: '🖤' }
     },
     metricIssueRules: {
-      'Audio AEC Delay': { isNoSound: 0, isLowLevel: 0, isEcho: 1, isBlack: 0 },
-      'Audio Signal Level Nearin': { isNoSound: 1, isLowLevel: 1, isEcho: 0, isBlack: 0 },
-      'A RECORD SIGNAL VOLUME': { isNoSound: 1, isLowLevel: 1, isEcho: 0, isBlack: 0 },
-      'Chat Engine Error Code': { isNoSound: 1, isLowLevel: 1, isEcho: 1, isBlack: 1 }
+      'Audio AEC Delay': { isNoSound: 0, isLowLevel: 0, isEcho: 1, isAudioStutter: 0, isBlack: 0 },
+      'Audio Signal Level Nearin': { isNoSound: 1, isLowLevel: 1, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
+      'A RECORD SIGNAL VOLUME': { isNoSound: 1, isLowLevel: 1, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
+      'Chat Engine Error Code': { isNoSound: 1, isLowLevel: 1, isEcho: 1, isAudioStutter: 1, isBlack: 1 },
+      'Audio Playback Frequency': { isNoSound: 0, isLowLevel: 0, isEcho: 0, isAudioStutter: 1, isBlack: 0 },
+      'AUDIO DOWNLINK PULL 10MS DATA TIME': { isNoSound: 0, isLowLevel: 0, isEcho: 0, isAudioStutter: 1, isBlack: 0 }
     }
   };
   }
@@ -370,7 +409,7 @@ function loadInlineIssueRules() {
   // 内联函数定义（仅当外部函数不存在时才定义）
   if (typeof window.getMetricIssueTypes !== 'function') {
     window.getMetricIssueTypes = function(metricName) {
-      return window.ISSUE_RULES.metricIssueRules[metricName] || { isNoSound: 0, isLowLevel: 0, isEcho: 0, isBlack: 0 };
+      return window.ISSUE_RULES.metricIssueRules[metricName] || { isNoSound: 0, isLowLevel: 0, isEcho: 0, isAudioStutter: 0, isBlack: 0 };
     };
   }
 
@@ -1438,7 +1477,7 @@ async function showAecDelayAnalysis(response) {
     if (window.Chart) {
       createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData);
     } else {
-      createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData);
+      createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData, response);
     }
     
     // 图表创建后立即更新基本信息
@@ -1599,6 +1638,10 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
             <label class="checkbox-item">
               <input type="checkbox" id="isEcho" data-issue-type="isEcho">
               <span class="checkbox-label">回声</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" id="isAudioStutter" data-issue-type="isAudioStutter">
+              <span class="checkbox-label">音频卡顿</span>
             </label>
             <label class="checkbox-item">
               <input type="checkbox" id="isBlack" data-issue-type="isBlack">
@@ -2800,15 +2843,21 @@ function updateChartStats(data) {
 }
 
 // 创建组合备用图表（当Chart.js无法加载时使用）
-function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData) {
+function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData, responseText) {
   console.log('使用备用图表显示组合音频分析数据');
+  
+  // 提取音频卡顿相关指标数据
+  const audioPlaybackFrequencyData = window.extractMetricData ? window.extractMetricData(responseText, 'Audio Playback Frequency') : null;
+  const audioDownlinkPullTimeData = window.extractMetricData ? window.extractMetricData(responseText, 'AUDIO DOWNLINK PULL 10MS DATA TIME') : null;
   
   // 保存数据到全局变量，以便后续动态访问
   window.metricDataCache = {
     'Audio AEC Delay': aecDelayData,
     'Audio Signal Level Nearin': signalLevelData,
     'A RECORD SIGNAL VOLUME': recordSignalVolumeData,
-    'Chat Engine Error Code': errorCodeData
+    'Chat Engine Error Code': errorCodeData,
+    'Audio Playback Frequency': audioPlaybackFrequencyData,
+    'AUDIO DOWNLINK PULL 10MS DATA TIME': audioDownlinkPullTimeData
   };
   
   // 创建图表容器
@@ -2836,6 +2885,10 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
           <label class="checkbox-item">
             <input type="checkbox" id="isEcho" data-issue-type="isEcho">
             <span class="checkbox-label">回声</span>
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" id="isAudioStutter" data-issue-type="isAudioStutter">
+            <span class="checkbox-label">音频卡顿</span>
           </label>
           <label class="checkbox-item">
             <input type="checkbox" id="isBlack" data-issue-type="isBlack">
@@ -2959,6 +3012,68 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
               <div class="stat-item">
                 <span class="stat-label">变化频率</span>
                 <span class="stat-value">${calculateChangeFrequency(errorCodeData.data)}</span>
+              </div>
+            </div>
+          </div>
+          ` : ''}
+          ${audioPlaybackFrequencyData ? `
+          <div class="metric-row" data-metric="Audio Playback Frequency">
+            <div class="metric-data-section">
+              <h4>⏸️ Audio Playback Frequency 数据</h4>
+              <div class="data-table" id="audioPlaybackFrequencyDataTable"></div>
+            </div>
+            <div class="metric-stats-section">
+              <h4>⏸️ Audio Playback Frequency 统计</h4>
+              <div class="stat-item">
+                <span class="stat-label">数据点</span>
+                <span class="stat-value">${audioPlaybackFrequencyData.data.length}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">平均频率</span>
+                <span class="stat-value">${calculateAverageDelay(audioPlaybackFrequencyData.data)} Hz</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">最大频率</span>
+                <span class="stat-value">${calculateMaxDelay(audioPlaybackFrequencyData.data)} Hz</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">变化次数</span>
+                <span class="stat-value">${calculateChangeCount(audioPlaybackFrequencyData.data)}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">变化频率</span>
+                <span class="stat-value">${calculateChangeFrequency(audioPlaybackFrequencyData.data)}</span>
+              </div>
+            </div>
+          </div>
+          ` : ''}
+          ${audioDownlinkPullTimeData ? `
+          <div class="metric-row" data-metric="AUDIO DOWNLINK PULL 10MS DATA TIME">
+            <div class="metric-data-section">
+              <h4>📥 AUDIO DOWNLINK PULL 10MS DATA TIME 数据</h4>
+              <div class="data-table" id="audioDownlinkPullTimeDataTable"></div>
+            </div>
+            <div class="metric-stats-section">
+              <h4>📥 AUDIO DOWNLINK PULL 10MS DATA TIME 统计</h4>
+              <div class="stat-item">
+                <span class="stat-label">数据点</span>
+                <span class="stat-value">${audioDownlinkPullTimeData.data.length}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">平均时间</span>
+                <span class="stat-value">${calculateAverageDelay(audioDownlinkPullTimeData.data)} ms</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">最大时间</span>
+                <span class="stat-value">${calculateMaxDelay(audioDownlinkPullTimeData.data)} ms</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">变化次数</span>
+                <span class="stat-value">${calculateChangeCount(audioDownlinkPullTimeData.data)}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">变化频率</span>
+                <span class="stat-value">${calculateChangeFrequency(audioDownlinkPullTimeData.data)}</span>
               </div>
             </div>
           </div>
@@ -3677,6 +3792,12 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
   createDataTable(recordSignalVolumeData.data, 'recordDataTable');
   if (errorCodeData) {
     createDataTable(errorCodeData.data, 'errorCodeDataTable');
+  }
+  if (audioPlaybackFrequencyData) {
+    createDataTable(audioPlaybackFrequencyData.data, 'audioPlaybackFrequencyDataTable');
+  }
+  if (audioDownlinkPullTimeData) {
+    createDataTable(audioDownlinkPullTimeData.data, 'audioDownlinkPullTimeDataTable');
   }
   
   // 初始化时隐藏所有指标行（metric-row）

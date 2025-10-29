@@ -27,6 +27,12 @@ const ISSUE_RULES = {
       color: '#f44336',
       icon: '🔊'
     },
+    isAudioStutter: {
+      name: '音频卡顿',
+      description: '音频播放卡顿或断续',
+      color: '#9c27b0',
+      icon: '⏸️'
+    },
     isBlack: {
       name: '黑屏',
       description: '视频画面显示异常或黑屏',
@@ -41,25 +47,43 @@ const ISSUE_RULES = {
       isNoSound: 0,
       isLowLevel: 0,
       isEcho: 1,
+      isAudioStutter: 0,
       isBlack: 0
     },
     'Audio Signal Level Nearin': {
       isNoSound: 1,
       isLowLevel: 1,
       isEcho: 0,
+      isAudioStutter: 0,
       isBlack: 0
     },
     'A RECORD SIGNAL VOLUME': {
       isNoSound: 1,
       isLowLevel: 1,
       isEcho: 0,
+      isAudioStutter: 0,
       isBlack: 0
     },
     'Chat Engine Error Code': {
       isNoSound: 1,
       isLowLevel: 1,
       isEcho: 1,
+      isAudioStutter: 1,
       isBlack: 1
+    },
+    'Audio Playback Frequency': {
+      isNoSound: 0,
+      isLowLevel: 0,
+      isEcho: 0,
+      isAudioStutter: 1,
+      isBlack: 0
+    },
+    'AUDIO DOWNLINK PULL 10MS DATA TIME': {
+      isNoSound: 0,
+      isLowLevel: 0,
+      isEcho: 0,
+      isAudioStutter: 1,
+      isBlack: 0
     }
   }
 };
@@ -74,6 +98,7 @@ function getMetricIssueTypes(metricName) {
     isNoSound: 0,
     isLowLevel: 0,
     isEcho: 0,
+    isAudioStutter: 0,
     isBlack: 0
   };
 }
@@ -130,8 +155,8 @@ function generateIssueRulesTable() {
   const issueTypes = getAllIssueTypes();
   
   let table = '问题类型规则表:\n';
-  table += '指标名称'.padEnd(25) + '| 无声 | 音量小 | 回声\n';
-  table += '-'.repeat(25) + '|------|--------|------\n';
+  table += '指标名称'.padEnd(25) + '| 无声 | 音量小 | 回声 | 音频卡顿 | 黑屏\n';
+  table += '-'.repeat(25) + '|------|--------|------|----------|------\n';
   
   metrics.forEach(metricName => {
     const rules = ISSUE_RULES.metricIssueRules[metricName];
@@ -158,6 +183,8 @@ function extractMetricNameFromTitle(titleText) {
   if (titleText.includes('Signal Level')) return 'Audio Signal Level Nearin';
   if (titleText.includes('Record Volume')) return 'A RECORD SIGNAL VOLUME';
   if (titleText.includes('Error Code')) return 'Chat Engine Error Code';
+  if (titleText.includes('Audio Playback Frequency')) return 'Audio Playback Frequency';
+  if (titleText.includes('AUDIO DOWNLINK PULL 10MS DATA TIME')) return 'AUDIO DOWNLINK PULL 10MS DATA TIME';
   return null;
 }
 
@@ -192,7 +219,9 @@ function updateMetricRule(metricName, issueType, value) {
     ISSUE_RULES.metricIssueRules[metricName] = {
       isNoSound: 0,
       isLowLevel: 0,
-      isEcho: 0
+      isEcho: 0,
+      isAudioStutter: 0,
+      isBlack: 0
     };
   }
   ISSUE_RULES.metricIssueRules[metricName][issueType] = value;
