@@ -99,6 +99,7 @@ window.calculateChangeFrequency = function(data) {
     'src/utils.js',
     'src/issue-rules.js',
     'src/base-info.js',
+    'src/data-util.js',
     'src/metrics/metrics-utils.js',
     'src/metrics/aec-delay.js',
     'src/metrics/signal-level.js',
@@ -553,14 +554,38 @@ async function performAutoCheck(scopeRoot = document, scopeIndex = undefined) {
           uidValues[0].value = match[1];
         }
       }
-      responseText = await fecthResponse(uidValues[0].value);
-      // console.log('response:', responseText);
+      
+      const uid = uidValues[0].value;
+      countersResponse = await fecthResponse(uid, "counters");
+      eventlistResponse = await fecthResponse(uid, "eventlist");
+
+      // 使用 DataUtil 保存 countersResponse 和 eventlistResponse
+      try {
+        // 动态导入 data-util 模块
+        const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
+        
+        if (countersResponse) {
+          // 构建 counters URL
+          const countersUrl = `counters?uids=${uid}`;
+          dataUtil.saveData('counters', uid, countersUrl, countersResponse);
+          console.log('✅ countersResponse 已保存到 DataUtil:', { uid, url: countersUrl });
+        }
+        
+        if (eventlistResponse) {
+          // 构建 eventlist URL  
+          const eventlistUrl = `eventlist?uid=${uid}`;
+          dataUtil.saveData('eventlist', uid, eventlistUrl, eventlistResponse);
+          console.log('✅ eventlistResponse 已保存到 DataUtil:', { uid, url: eventlistUrl });
+        }
+      } catch (error) {
+        console.error('❌ 保存数据到 DataUtil 失败:', error);
+      }
     }
     
     // 拿到响应后再执行分析
-    if (responseText) {
+    if (countersResponse) {
       // 创建图表并更新基本信息（showAecDelayAnalysis 内部会更新基本信息）
-      await showAecDelayAnalysis(responseText);
+      await showAecDelayAnalysis(countersResponse);
     } else {
       showNotification('未找到响应数据', 'error');
     }
@@ -572,7 +597,7 @@ async function performAutoCheck(scopeRoot = document, scopeIndex = undefined) {
 }
 
 // 打印 uid 的 url 和 response
-function fecthResponse(uidValues) {
+function fecthResponse(uidValue, type) {
   if (!window.resp || !Array.isArray(window.resp)) {
     console.log('❗ 未找到 window.resp 或类型有误');
     return null;
@@ -580,9 +605,9 @@ function fecthResponse(uidValues) {
 
   let matchedUrl = null;
   for (const entry of window.resp) {
-    if (entry && typeof entry.name === 'string' && entry.name.includes('uids=' + uidValues + '')) {
+    if (entry && typeof entry.name === 'string' && entry.name.includes(type) && entry.name.includes('uids=' + uidValue + '')) {
       matchedUrl = entry.name;
-      console.log(`🌐 [resp] 发现包含 UID ${uidValues} 的网络请求:`);
+      console.log(`🌐 [resp] 发现包含 UID ${uidValue} 的网络请求:`);
       console.log('  URL:', matchedUrl);
       break;
     }
@@ -1111,9 +1136,17 @@ function monitorNetworkRequests() {
   const originalFetch = window.fetch;
   window.fetch = function(...args) {
     const url = args[0];
-    if (typeof url === 'string' && url.includes('counters?') && url.includes('uids=')) {
+    const isCountersRequest = typeof url === 'string' && url.includes('counters?') && url.includes('uids=');
+    const iseventlistRequest = typeof url === 'string' && url.includes('eventlist');
+    
+    if (isCountersRequest || iseventlistRequest) {
       if (window.__autoCheckDebug) {
-        console.log('🌐 [Fetch] 发现包含 uids 参数的 counters 请求:', url);
+        if (isCountersRequest) {
+          console.log('🌐 [Fetch] 发现包含 uids 参数的 counters 请求:', url);
+        }
+        if (iseventlistRequest) {
+          console.log('🌐 [Fetch] 发现 eventlist 请求:', url);
+        }
       }
       
       // 拦截响应并计算 JSON 长度
@@ -1130,12 +1163,37 @@ function monitorNetworkRequests() {
             // 克隆响应以便读取内容
             const clonedResponse = response.clone();
             const requestUrl = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url ? args[0].url : '');
-            clonedResponse.text().then(text => {
-              // 保存 url 和 response 到 map
-              window.countersFetchMap.set(requestUrl, text);
-              if (window.__autoCheckDebug) {
-                console.log('保存 url 和 response 到 map:', requestUrl);
+            clonedResponse.text().then(async text => {
+              // 保存 url 和 response 到 map（仅 counters 请求）
+              if (isCountersRequest) {
+                window.countersFetchMap.set(requestUrl, text);
+                if (window.__autoCheckDebug) {
+                  console.log('保存 url 和 response 到 map:', requestUrl);
+                }
               }
+              
+              // 检测 eventlist 请求并保存数据
+              if (iseventlistRequest) {
+                try {
+                  // 动态导入 data-util 模块
+                  const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
+                  const uid = dataUtil.extractUidFromUrl(requestUrl);
+                  
+                  if (uid) {
+                    dataUtil.saveData('eventlist', uid, requestUrl, text);
+                    if (window.__autoCheckDebug) {
+                      console.log('✅ [Fetch] 已保存 eventlist 数据:', { uid, url: requestUrl });
+                    }
+                  } else {
+                    if (window.__autoCheckDebug) {
+                      console.warn('⚠️ [Fetch] 无法从 URL 提取 UID:', requestUrl);
+                    }
+                  }
+                } catch (error) {
+                  console.error('❌ [Fetch] 保存 eventlist 数据失败:', error);
+                }
+              }
+              
               try {
                 const jsonData = JSON.parse(text);
                 const jsonLength = JSON.stringify(jsonData).length;
@@ -1180,23 +1238,55 @@ function monitorNetworkRequests() {
     const xhr = this;
     const url = xhr._monitoredUrl;
     const method = xhr._monitoredMethod;
+    const isCountersRequest = typeof url === 'string' && url.includes('counters?') && url.includes('uids=');
+    const iseventlistRequest = typeof url === 'string' && url.includes('eventlist');
     
-    if (typeof url === 'string' && url.includes('counters?') && url.includes('uids=')) {
+    if (isCountersRequest || iseventlistRequest) {
       if (window.__autoCheckDebug) {
-        console.log('🌐 [XHR] 发现包含 uids 的 counters 请求:', method, url);
+        if (isCountersRequest) {
+          console.log('🌐 [XHR] 发现包含 uids 的 counters 请求:', method, url);
+        }
+        if (iseventlistRequest) {
+          console.log('🌐 [XHR] 发现 eventlist 请求:', method, url);
+        }
       }
       
       // 监听响应
       const originalOnReadyStateChange = xhr.onreadystatechange;
-      xhr.onreadystatechange = function() {
+      xhr.onreadystatechange = async function() {
         if (xhr.readyState === 4) { // 请求完成
           if (xhr.status >= 200 && xhr.status < 300) {
             try {
               const responseText = xhr.responseText;
-              const jsonData = JSON.parse(responseText);
-              const jsonLength = JSON.stringify(jsonData).length;
-              if (window.__autoCheckDebug) {
-                console.log('📊 [XHR] 响应 JSON 长度:', jsonLength);
+              
+              // 检测 eventlist 请求并保存数据
+              if (iseventlistRequest) {
+                try {
+                  // 动态导入 data-util 模块
+                  const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
+                  const uid = dataUtil.extractUidFromUrl(url);
+                  
+                  if (uid) {
+                    dataUtil.saveData('eventlist', uid, url, responseText);
+                    if (window.__autoCheckDebug) {
+                      console.log('✅ [XHR] 已保存 eventlist 数据:', { uid, url: url });
+                    }
+                  } else {
+                    if (window.__autoCheckDebug) {
+                      console.warn('⚠️ [XHR] 无法从 URL 提取 UID:', url);
+                    }
+                  }
+                } catch (error) {
+                  console.error('❌ [XHR] 保存 eventlist 数据失败:', error);
+                }
+              }
+              
+              if (isCountersRequest) {
+                const jsonData = JSON.parse(responseText);
+                const jsonLength = JSON.stringify(jsonData).length;
+                if (window.__autoCheckDebug) {
+                  console.log('📊 [XHR] 响应 JSON 长度:', jsonLength);
+                }
               }
             } catch (error) {
               if (window.__autoCheckDebug) {
@@ -1244,7 +1334,7 @@ function monitorNetworkRequests() {
   // 监听所有网络请求（更全面的方法）
   const networkObserver = new PerformanceObserver((list) => {
     for (const entry of list.getEntries()) {
-      if (entry.name && entry.name.includes('counters?')) {
+      if (entry.name && ( entry.name.includes('counters?') || entry.name.includes('eventlist') )) {
         if (window.__autoCheckDebug) {
           console.log('🌐 [Network] counters 请求:', entry.entryType, entry.name);
         }
