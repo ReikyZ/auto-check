@@ -9,8 +9,14 @@ document.addEventListener('DOMContentLoaded', function() {
   const refreshStatusBtn = document.getElementById('refreshStatus');
   const openOptionsBtn = document.getElementById('openOptions');
 
+  // 新增：获取 checkbox 和分析区域元素
+  const issueCheckboxes = document.querySelectorAll('.issue-checkbox');
+  const analysisResultsEl = document.querySelector('.analysis-results');
+  const analysisContentEl = document.getElementById('analysisContent');
+
   // 初始化状态
   updateStatus();
+  updateAnalysisDisplay(); // 新增：初始化分析显示
 
   // 手动执行检查按钮
   manualCheckBtn.addEventListener('click', function() {
@@ -25,6 +31,13 @@ document.addEventListener('DOMContentLoaded', function() {
   // 打开选项页面按钮
   openOptionsBtn.addEventListener('click', function() {
     chrome.runtime.openOptionsPage();
+  });
+
+  // 新增：监听 checkbox 变化事件
+  issueCheckboxes.forEach(checkbox => {
+    checkbox.addEventListener('change', function() {
+      updateAnalysisDisplay();
+    });
   });
 
   // 更新状态信息
@@ -66,6 +79,98 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  // 新增：更新分析显示
+  function updateAnalysisDisplay() {
+    const selectedIssues = Array.from(issueCheckboxes)
+      .filter(checkbox => checkbox.checked)
+      .map(checkbox => checkbox.dataset.issue);
+
+    if (selectedIssues.length === 0) {
+      // 没有勾选任何 issue 时，隐藏分析区域
+      analysisResultsEl.style.display = 'none';
+      analysisContentEl.innerHTML = '';
+      return;
+    }
+
+    // 显示分析区域
+    analysisResultsEl.style.display = 'block';
+
+    // 获取与选中 issue 相关的所有指标
+    const relatedMetrics = getRelatedMetricsForSelectedIssues(selectedIssues);
+
+    // 生成分析内容
+    const analysisContent = generateAnalysisContent(relatedMetrics);
+    analysisContentEl.innerHTML = analysisContent;
+  }
+
+  // 新增：根据选中的 issue 获取相关指标
+  function getRelatedMetricsForSelectedIssues(selectedIssues) {
+    const allMetrics = [
+      'Audio AEC Delay',
+      'Audio Signal Level Nearin',
+      'A RECORD SIGNAL VOLUME',
+      'Chat Engine Error Code',
+      'Audio Playback Frequency',
+      'AUDIO DOWNLINK PULL 10MS DATA TIME'
+    ];
+
+    const relatedMetrics = new Set();
+
+    selectedIssues.forEach(issueType => {
+      const metricsForIssue = getMetricsForIssueType(issueType);
+      metricsForIssue.forEach(metric => {
+        relatedMetrics.add(metric);
+      });
+    });
+
+    // 确保 Chat Engine Error Code 始终包含（因为它关联所有 issue）
+    relatedMetrics.add('Chat Engine Error Code');
+
+    return Array.from(relatedMetrics);
+  }
+
+  // 新增：生成分析内容
+  function generateAnalysisContent(metrics) {
+    if (metrics.length === 0) {
+      return '<p style="color: rgba(255, 255, 255, 0.7);">没有找到相关分析数据</p>';
+    }
+
+    let content = `<p style="margin: 0 0 10px 0; font-weight: 500;">检测到 ${metrics.length} 个相关指标：</p>`;
+
+    metrics.forEach(metric => {
+      const issueRelations = getMetricIssueTypes(metric);
+      const relatedIssues = Object.keys(issueRelations).filter(key => issueRelations[key] === 1);
+      
+      // 获取指标描述（简化版）
+      const metricDescription = getMetricDescription(metric);
+      
+      content += `
+        <div style="margin-bottom: 12px; padding: 8px; background: rgba(255, 255, 255, 0.1); border-radius: 4px;">
+          <div style="font-weight: 500; margin-bottom: 4px;">${metric}</div>
+          <div style="font-size: 11px; opacity: 0.8;">${metricDescription}</div>
+          <div style="font-size: 11px; margin-top: 4px; opacity: 0.7;">
+            关联问题类型：${relatedIssues.map(issue => getIssueTypeConfig(issue)?.name || issue).join('、')}
+          </div>
+        </div>
+      `;
+    });
+
+    return content;
+  }
+
+  // 新增：获取指标描述
+  function getMetricDescription(metric) {
+    const descriptions = {
+      'Audio AEC Delay': '音频回声消除延迟检测',
+      'Audio Signal Level Nearin': '音频信号强度检测',
+      'A RECORD SIGNAL VOLUME': '录音信号音量检测',
+      'Chat Engine Error Code': '聊天引擎错误码分析',
+      'Audio Playback Frequency': '音频播放频率监控',
+      'AUDIO DOWNLINK PULL 10MS DATA TIME': '音频下行数据拉取延迟'
+    };
+    return descriptions[metric] || '未知指标';
+  }
+
   // 执行手动检查
   async function executeManualCheck() {
     try {
@@ -85,6 +190,9 @@ document.addEventListener('DOMContentLoaded', function() {
           
           // 显示成功消息
           showMessage('手动检查执行成功！', 'success');
+          
+          // 刷新分析显示
+          updateAnalysisDisplay();
         } else {
           showMessage('手动检查执行失败', 'error');
         }
@@ -169,4 +277,10 @@ document.addEventListener('DOMContentLoaded', function() {
       updateStatus();
     }
   });
+
+  // 新增：从 issue-rules.js 导入必要函数（确保在浏览器环境中可用）
+  if (typeof window.getMetricsForIssueType === 'undefined') {
+    // 如果函数未定义，说明 issue-rules.js 未正确加载，需要手动定义或确保加载顺序
+    console.warn('issue-rules.js 函数未加载，请确保在 manifest.json 中正确配置');
+  }
 });

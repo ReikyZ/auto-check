@@ -132,11 +132,46 @@
     <button class="btn" id="refreshStatus">刷新状态</button>
     <button class="btn" id="openOptions">设置选项</button>
   </div>
-  
-  <div class="footer">
-    <p>v1.0 - Auto Check Extension</p>
-  </div>
 
-  <script src="popup.js"></script>
+<!-- 新增：问题类型选择区域 -->
+<div class="issue-filters" style="margin: 15px 0; background: rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 15px; backdrop-filter: blur(10px);">
+  <h3 style="margin: 0 0 10px 0; font-size: 14px; font-weight: 600;">问题类型筛选</h3>
+  <div class="checkbox-group" style="display: flex; flex-direction: column; gap: 8px;">
+    <label class="checkbox-label" style="display: flex; align-items: center; cursor: pointer; font-size: 13px; opacity: 0.9;">
+      <input type="checkbox" class="issue-checkbox" data-issue="isNoSound" style="margin-right: 8px; accent-color: #ff6b6b;">
+      <span style="color: #ff6b6b;">🔇 无声</span>
+    </label>
+    <label class="checkbox-label" style="display: flex; align-items: center; cursor: pointer; font-size: 13px; opacity: 0.9;">
+      <input type="checkbox" class="issue-checkbox" data-issue="isLowLevel" style="margin-right: 8px; accent-color: #ffa726;">
+      <span style="color: #ffa726;">🔉 音量小</span>
+    </label>
+    <label class="checkbox-label" style="display: flex; align-items: center; cursor: pointer; font-size: 13px; opacity: 0.9;">
+      <input type="checkbox" class="issue-checkbox" data-issue="isEcho" style="margin-right: 8px; accent-color: #f44336;">
+      <span style="color: #f44336;">🔊 回声</span>
+    </label>
+    <label class="checkbox-label" style="display: flex; align-items: center; cursor: pointer; font-size: 13px; opacity: 0.9;">
+      <input type="checkbox" class="issue-checkbox" data-issue="isAudioStutter" style="margin-right: 8px; accent-color: #9c27b0;">
+      <span style="color: #9c27b0;">⏸️ 音频卡顿</span>
+    </label>
+    <label class="checkbox-label" style="display: flex; align-items: center; cursor: pointer; font-size: 13px; opacity: 0.9;">
+      <input type="checkbox" class="issue-checkbox" data-issue="isBlack" style="margin-right: 8px; accent-color: #000000;">
+      <span style="color: #000000;">🖤 黑屏</span>
+    </label>
+  </div>
+</div>
+
+<!-- 新增：分析结果显示区域 -->
+<div class="analysis-results" style="background: rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 15px; backdrop-filter: blur(10px); display: none; max-height: 200px; overflow-y: auto;">
+  <h3 style="margin: 0 0 10px 0; font-size: 14px; font-weight: 600; color: #fff;">分析结果</h3>
+  <div id="analysisContent" style="font-size: 12px; line-height: 1.4; color: rgba(255, 255, 255, 0.9);">
+    <!-- 动态内容将在这里显示 -->
+  </div>
+</div>
+
+<div class="footer">
+  <p>v1.0 - Auto Check Extension</p>
+</div>
+
+<script src="popup.js"></script>
 </body>
 </html>
