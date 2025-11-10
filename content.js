@@ -1549,10 +1549,22 @@ async function showAecDelayAnalysis(response) {
     
     const aecDelayData = aecDelayModule.getAecDelayData(response);
     console.log('aecDelayData', aecDelayData);
-    
+
     const signalLevelData = signalLevelModule.getAudioSignalLevelNearinData(response);
     const recordSignalVolumeData = recordVolumeModule.getARecordSignalVolumeData(response);
-    const errorCodeData = errorCodeModule.getChatEngineErrorData(response);
+    // 获取 error code 数据
+    let errorCodeData;
+    const onErrorCodeDataUpdate = (updatedData) => {
+      errorCodeData = updatedData;
+      // 重新渲染 error code 表格
+      if (document.getElementById('errorCodeDataTable')) {
+        createErrorCodeTable(errorCodeData, 'errorCodeDataTable');
+      }
+    };
+
+    errorCodeData = errorCodeModule.getChatEngineErrorData(response, onErrorCodeDataUpdate);
+
+    console.log('errorCodeData', errorCodeData);
     
     // 如果没有数据，显示提示信息
     if (!aecDelayData && !signalLevelData && !recordSignalVolumeData && !errorCodeData) {
@@ -1935,7 +1947,14 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
         border-right: 1px solid #e9ecef;
         background: #f8f9fa;
       }
-      
+
+      .combined-audio-analysis-container .metric-full-section {
+        flex: 1;
+        padding: 15px;
+        background: #f8f9fa;
+        width: 100%;
+      }
+
       .combined-audio-analysis-container .metric-stats-section {
         flex: 1;
         padding: 15px;
@@ -2054,6 +2073,15 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
         border-radius: 4px;
         background: white;
       }
+
+      .combined-audio-analysis-container .metric-full-section .data-table {
+        max-height: 300px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        background: white;
+        width: 100%;
+      }
       
       .combined-audio-analysis-container .metric-data-section .data-table::-webkit-scrollbar {
         width: 6px;
@@ -2070,6 +2098,24 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
       }
       
       .combined-audio-analysis-container .metric-data-section .data-table::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+      }
+
+      .combined-audio-analysis-container .metric-full-section .data-table::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .combined-audio-analysis-container .metric-full-section .data-table::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 3px;
+      }
+
+      .combined-audio-analysis-container .metric-full-section .data-table::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 3px;
+      }
+
+      .combined-audio-analysis-container .metric-full-section .data-table::-webkit-scrollbar-thumb:hover {
         background: #a8a8a8;
       }
       
@@ -2995,32 +3041,9 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
           </div>
           ${errorCodeData ? `
           <div class="metric-row" data-metric="Chat Engine Error Code">
-            <div class="metric-data-section">
-              <h4>🚨 Error Code 数据</h4>
+            <div class="metric-full-section">
+              <h4>🚨 Chat Engine Error Code</h4>
               <div class="data-table" id="errorCodeDataTable"></div>
-            </div>
-            <div class="metric-stats-section">
-              <h4>🚨 Chat Engine Error Code 统计</h4>
-              <div class="stat-item">
-                <span class="stat-label">数据点</span>
-                <span class="stat-value">${errorCodeData.data.length}</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-label">错误代码数</span>
-                <span class="stat-value">${new Set(errorCodeData.data.map(d => d.value)).size}</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-label">最大错误码</span>
-                <span class="stat-value">${Math.max(...errorCodeData.data.map(d => d.value))}</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-label">变化次数</span>
-                <span class="stat-value">${calculateChangeCount(errorCodeData.data)}</span>
-              </div>
-              <div class="stat-item">
-                <span class="stat-label">变化频率</span>
-                <span class="stat-value">${calculateChangeFrequency(errorCodeData.data)}</span>
-              </div>
             </div>
           </div>
           ` : ''}
@@ -3234,7 +3257,14 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
         border-right: 1px solid #e9ecef;
         background: #f8f9fa;
       }
-      
+
+      .combined-audio-analysis-container .metric-full-section {
+        flex: 1;
+        padding: 15px;
+        background: #f8f9fa;
+        width: 100%;
+      }
+
       .combined-audio-analysis-container .metric-stats-section {
         flex: 1;
         padding: 15px;
@@ -3353,6 +3383,15 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
         border-radius: 4px;
         background: white;
       }
+
+      .combined-audio-analysis-container .metric-full-section .data-table {
+        max-height: 300px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        background: white;
+        width: 100%;
+      }
       
       .combined-audio-analysis-container .metric-data-section .data-table::-webkit-scrollbar {
         width: 6px;
@@ -3369,6 +3408,24 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
       }
       
       .combined-audio-analysis-container .metric-data-section .data-table::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+      }
+
+      .combined-audio-analysis-container .metric-full-section .data-table::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .combined-audio-analysis-container .metric-full-section .data-table::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 3px;
+      }
+
+      .combined-audio-analysis-container .metric-full-section .data-table::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 3px;
+      }
+
+      .combined-audio-analysis-container .metric-full-section .data-table::-webkit-scrollbar-thumb:hover {
         background: #a8a8a8;
       }
       
@@ -3799,7 +3856,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
   createDataTable(signalLevelData.data, 'signalDataTable');
   createDataTable(recordSignalVolumeData.data, 'recordDataTable');
   if (errorCodeData) {
-    createDataTable(errorCodeData.data, 'errorCodeDataTable');
+    createErrorCodeTable(errorCodeData, 'errorCodeDataTable');
   }
   if (audioPlaybackFrequencyData) {
     createDataTable(audioPlaybackFrequencyData.data, 'audioPlaybackFrequencyDataTable');
@@ -4314,6 +4371,84 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
 }
 
 // 创建数据表格
+// 创建 Error Code 专用表格
+function createErrorCodeTable(errorCodeData, containerId = 'errorCodeDataTable') {
+  const tableContainer = document.getElementById(containerId);
+  if (!tableContainer) return;
+
+  // 如果没有数据，返回
+  if (!errorCodeData || !errorCodeData.data || !Array.isArray(errorCodeData.data)) {
+    return;
+  }
+
+  // 创建表格
+  const table = document.createElement('table');
+  table.className = 'data-table-content error-code-table';
+
+  // 表头
+  const header = document.createElement('tr');
+  header.innerHTML = `
+    <th style="width: 200px;">时间</th>
+    <th style="width: 120px;">错误码</th>
+    <th>错误描述</th>
+  `;
+  table.appendChild(header);
+
+  // 显示所有数据
+  if (errorCodeData.loading) {
+    // 正在加载中
+    errorCodeData.data.forEach(([timestamp, errorCode, description]) => {
+      const row = document.createElement('tr');
+      const time = new Date(timestamp).toLocaleTimeString();
+
+      row.innerHTML = `
+        <td>${time}</td>
+        <td style="font-family: monospace; font-weight: bold;">${errorCode !== null ? errorCode : '-'}</td>
+        <td style="text-align: left; color: #666; font-style: italic;">${description || '解析中...'}</td>
+      `;
+      table.appendChild(row);
+    });
+  } else if (errorCodeData.error) {
+    // 解析失败
+    const errorRow = document.createElement('tr');
+    errorRow.innerHTML = `
+      <td colspan="3" style="text-align: center; color: #dc3545; font-style: italic;">
+        错误代码解析失败: ${errorCodeData.error}
+      </td>
+    `;
+    table.appendChild(errorRow);
+  } else {
+    // 解析成功，显示完整数据
+    errorCodeData.data.forEach(([timestamp, errorCode, description]) => {
+      const row = document.createElement('tr');
+      const time = new Date(timestamp).toLocaleTimeString();
+
+      console.log('SSSSS time', time);
+      row.innerHTML = `
+        <td>${time}</td>
+        <td style="font-family: monospace; font-weight: bold;">${errorCode !== null ? errorCode : '-'}</td>
+        <td style="text-align: left;">${description !== null ? description : '-'}</td>
+      `;
+      table.appendChild(row);
+    });
+  }
+
+  // 如果没有数据
+  if (errorCodeData.data.length === 0) {
+    const emptyRow = document.createElement('tr');
+    emptyRow.innerHTML = `
+      <td colspan="3" style="text-align: center; color: #666; font-style: italic;">
+        没有有效的错误代码数据
+      </td>
+    `;
+    table.appendChild(emptyRow);
+  }
+
+  // 清空容器并添加新表格
+  tableContainer.innerHTML = '';
+  tableContainer.appendChild(table);
+}
+
 function createDataTable(data, containerId = 'dataTable') {
   const tableContainer = document.getElementById(containerId);
   if (!tableContainer) return;

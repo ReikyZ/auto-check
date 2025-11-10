@@ -703,6 +703,52 @@
   border-radius: 3px;
 }
 
+/* Error Code 表格特殊样式 */
+.error-code-table .data-table-content th {
+  background: #dc3545;
+}
+
+.error-code-table .data-table-content th:nth-child(2) {
+  font-family: 'Courier New', monospace;
+}
+
+.error-code-table .data-table-content td:nth-child(2) {
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  color: #dc3545;
+}
+
+.error-code-table .data-table-content td:nth-child(3) {
+  text-align: left;
+  max-width: 400px;
+  word-wrap: break-word;
+  white-space: normal;
+}
+
+/* 确保 error-code-table 填满 metric-row */
+.error-code-table .data-table-content {
+  width: 100% !important;
+  table-layout: fixed;
+}
+
+.error-code-table .data-table-content th:nth-child(1),
+.error-code-table .data-table-content td:nth-child(1) {
+  width: 200px;
+  min-width: 200px;
+}
+
+.error-code-table .data-table-content th:nth-child(2),
+.error-code-table .data-table-content td:nth-child(2) {
+  width: 120px;
+  min-width: 120px;
+}
+
+.error-code-table .data-table-content th:nth-child(3),
+.error-code-table .data-table-content td:nth-child(3) {
+  width: calc(100% - 320px);
+  min-width: 200px;
+}
+
 .data-table::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }

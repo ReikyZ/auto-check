@@ -124,7 +124,39 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     
     return true; // 保持消息通道开放
   }
-  
+
+  // 处理error code API请求
+  if (message.type === 'FETCH_ERROR_CODE') {
+    (async () => {
+      try {
+        console.log('Background正在处理error code API请求');
+
+        const response = await fetch('https://cstool.reikyz.me:9443/err_code', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(message.data)
+        });
+
+        console.log('Error code API响应状态:', response.status);
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log('Error code API请求成功:', data);
+        sendResponse({ success: true, data: data });
+      } catch (error) {
+        console.error('Error code API请求失败:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+
+    return true; // 保持消息通道开放
+  }
+
   // 处理同步消息
   switch (message.type) {
     case 'START_NETWORK_MONITORING':

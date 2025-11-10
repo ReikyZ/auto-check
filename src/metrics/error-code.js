@@ -4,8 +4,16 @@
  * ES6 模块版本
  */
 
+// 错误码到描述的映射表
+const errorCodeDescriptions = {
+  67072: 'Apple OSStatus: NSSharingServiceErrorMinimum, NSSharingServiceNotConfiguredError',
+  1028: 'WARN_ADM_IOS_RESTART',
+  88890001: 'Windows Error 0x88890001 The IAudioClient object is not initialized.',
+  // 可以在这里添加更多错误码映射
+};
+
 // ES6 箭头函数导出 - 获取并聚合 Chat Engine Last Error 数据
-export const getChatEngineErrorData = (responseText) => {
+export const getChatEngineErrorData = (responseText, onDataUpdate = null) => {
   if (!responseText || typeof responseText !== 'string') return null;
 
   let parsed;
@@ -38,46 +46,112 @@ export const getChatEngineErrorData = (responseText) => {
     }
   }
 
-  // 按时间戳聚合数据，排除 null、-1、0 的值
-  const aggregatedMap = new Map();
-
-  // 辅助函数：检查是否为有效错误代码
-  const isValidErrorCode = (value) => {
-    return value !== null && value !== -1 && value !== 0;
-  };
-
-  // 辅助函数：添加错误代码到聚合映射
-  const addErrorCode = (timestamp, value) => {
-    if (isValidErrorCode(value)) {
-      if (!aggregatedMap.has(timestamp)) {
-        aggregatedMap.set(timestamp, []);
-      }
-      aggregatedMap.get(timestamp).push(value);
-    }
-  };
-
-  // 聚合所有错误数据
+  // 获取所有唯一的时间戳
+  const allTimestamps = new Set();
   allErrorData.forEach(([timestamp, value]) => {
-    addErrorCode(timestamp, value);
+    allTimestamps.add(timestamp);
   });
 
-  // 转换为数组格式，保留同一时间戳的所有错误代码
-  const aggregatedData = Array.from(aggregatedMap.entries())
-    .map(([timestamp, values]) =>
-      values.map(value => ({ timestamp, value }))
-    )
-    .flat();
+  // 收集所有有效的错误码数据点用于API请求
+  const apiRequestData = allErrorData.filter(([timestamp, value]) =>
+    value !== null && value !== -1 && value !== 0
+  );
 
-  // 如果没有任何有效数据，返回 null
-  if (aggregatedData.length === 0) {
-    return null;
+  // 如果没有有效数据，返回空结果
+  if (apiRequestData.length === 0) {
+    return {
+      data: []
+    };
   }
 
-  return {
-    name: 'Chat Engine Error Code',
-    counterId: 0, // 聚合数据没有单一 counter_id
-    data: aggregatedData
-  };
+  // 通过API获取错误码描述
+  try {
+    console.log('发送错误码数据到API:', apiRequestData);
+
+    // 使用 Promise.resolve 来模拟异步操作，实际会通过回调更新
+    const result = {
+      data: apiRequestData.map(([timestamp, errorCode]) => [timestamp, errorCode, `正在解析错误码 ${errorCode}...`]),
+      loading: true
+    };
+
+    // 在后台异步获取错误描述
+    (async () => {
+      try {
+        const response = await new Promise((resolve, reject) => {
+          chrome.runtime.sendMessage(
+            {
+              type: 'FETCH_ERROR_CODE',
+              data: { data: apiRequestData }
+            },
+            (response) => {
+              if (chrome.runtime.lastError) {
+                reject(new Error(chrome.runtime.lastError.message));
+                return;
+              }
+
+              if (response.success) {
+                resolve(response.data);
+              } else {
+                reject(new Error(response.error || 'Unknown error'));
+              }
+            }
+          );
+        });
+
+        console.log('API响应:', response);
+
+        if (response && Array.isArray(response.data)) {
+          // 更新结果数据，将API响应与原始数据合并
+          result.data = apiRequestData.map(([timestamp, errorCode]) => {
+            // 从API响应中查找对应的描述
+            const apiResult = response.data.find(item =>
+              item[0] === timestamp && item[1] === errorCode
+            );
+            const description = apiResult ? apiResult[2] : `未知错误码: ${errorCode}`;
+            return [timestamp, errorCode, description];
+          });
+
+          result.loading = false;
+          console.log('错误码解析完成:', result.data);
+
+          // 触发数据更新回调
+          if (onDataUpdate && typeof onDataUpdate === 'function') {
+            onDataUpdate(result);
+          }
+        } else {
+          throw new Error('API响应格式错误');
+        }
+
+      } catch (error) {
+        console.error('获取错误码描述失败:', error);
+        // 失败时使用默认描述
+        result.data = apiRequestData.map(([timestamp, errorCode]) => [
+          timestamp,
+          errorCode,
+          `错误码: ${errorCode}`
+        ]);
+        result.loading = false;
+        result.error = error.message;
+
+        if (onDataUpdate && typeof onDataUpdate === 'function') {
+          onDataUpdate(result);
+        }
+      }
+    })();
+
+    return result;
+
+  } catch (error) {
+    console.error('处理错误码数据时出错:', error);
+    return {
+      data: apiRequestData.map(([timestamp, errorCode]) => [
+        timestamp,
+        errorCode,
+        `错误码: ${errorCode}`
+      ]),
+      error: error.message
+    };
+  }
 }
 
 // ES6 默认导出
