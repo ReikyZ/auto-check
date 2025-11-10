@@ -1681,6 +1681,13 @@ function loadChartJsFallback() {
 // 创建组合音频分析图表
 function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData) {
   console.log('createCombinedAudioAnalysisChart', aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData);
+
+  // 安全访问数据，避免 null/undefined 错误
+  const safeAecDelayData = aecDelayData || { data: [] };
+  const safeSignalLevelData = signalLevelData || { data: [] };
+  const safeRecordSignalVolumeData = recordSignalVolumeData || { data: [] };
+  const safeErrorCodeData = errorCodeData || { data: [] };
+
   // 保存数据到全局变量，以便后续动态访问
   window.metricDataCache = {
     'Audio AEC Delay': aecDelayData,
@@ -1746,69 +1753,69 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
             <h4>📊 Audio AEC Delay 统计</h4>
             <div class="stat-item">
               <span class="stat-label">数据点</span>
-              <span class="stat-value">${aecDelayData.data.length}</span>
+              <span class="stat-value">${safeAecDelayData.data.length}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">平均延迟</span>
-              <span class="stat-value">${calculateAverageDelay(aecDelayData.data)}ms</span>
+              <span class="stat-value">${calculateAverageDelay(safeAecDelayData.data)}ms</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">最大延迟</span>
-              <span class="stat-value">${calculateMaxDelay(aecDelayData.data)}ms</span>
+              <span class="stat-value">${calculateMaxDelay(safeAecDelayData.data)}ms</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">变化次数</span>
-              <span class="stat-value">${calculateChangeCount(aecDelayData.data)}</span>
+              <span class="stat-value">${calculateChangeCount(safeAecDelayData.data)}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">变化频率</span>
-              <span class="stat-value">${calculateChangeFrequency(aecDelayData.data)}</span>
+              <span class="stat-value">${calculateChangeFrequency(safeAecDelayData.data)}</span>
             </div>
           </div>
           <div class="stat-section">
             <h4>📈 Audio Signal Level Nearin 统计</h4>
             <div class="stat-item">
               <span class="stat-label">数据点</span>
-              <span class="stat-value">${signalLevelData.data.length}</span>
+              <span class="stat-value">${safeSignalLevelData.data.length}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">平均信号</span>
-              <span class="stat-value">${calculateAverageDelay(signalLevelData.data)}</span>
+              <span class="stat-value">${calculateAverageDelay(safeSignalLevelData.data)}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">最大信号</span>
-              <span class="stat-value">${calculateMaxDelay(signalLevelData.data)}</span>
+              <span class="stat-value">${calculateMaxDelay(safeSignalLevelData.data)}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">变化次数</span>
-              <span class="stat-value">${calculateChangeCount(signalLevelData.data)}</span>
+              <span class="stat-value">${calculateChangeCount(safeSignalLevelData.data)}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">变化频率</span>
-              <span class="stat-value">${calculateChangeFrequency(signalLevelData.data)}</span>
+              <span class="stat-value">${calculateChangeFrequency(safeSignalLevelData.data)}</span>
             </div>
           </div>
           <div class="stat-section">
             <h4>🎵 A RECORD SIGNAL VOLUME 统计</h4>
             <div class="stat-item">
               <span class="stat-label">数据点</span>
-              <span class="stat-value">${recordSignalVolumeData.data.length}</span>
+              <span class="stat-value">${safeRecordSignalVolumeData.data.length}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">平均音量</span>
-              <span class="stat-value">${calculateAverageDelay(recordSignalVolumeData.data)}</span>
+              <span class="stat-value">${calculateAverageDelay(safeRecordSignalVolumeData.data)}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">最大音量</span>
-              <span class="stat-value">${calculateMaxDelay(recordSignalVolumeData.data)}</span>
+              <span class="stat-value">${calculateMaxDelay(safeRecordSignalVolumeData.data)}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">变化次数</span>
-              <span class="stat-value">${calculateChangeCount(recordSignalVolumeData.data)}</span>
+              <span class="stat-value">${calculateChangeCount(safeRecordSignalVolumeData.data)}</span>
             </div>
             <div class="stat-item">
               <span class="stat-label">变化频率</span>
-              <span class="stat-value">${calculateChangeFrequency(recordSignalVolumeData.data)}</span>
+              <span class="stat-value">${calculateChangeFrequency(safeRecordSignalVolumeData.data)}</span>
             </div>
           </div>
         </div>
@@ -2544,12 +2551,18 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
     const hasActiveIssues = Object.values(issues).some(checked => checked);
     console.log('📊 是否有激活的问题:', hasActiveIssues);
     
-    if (!hasActiveIssues) {
-      console.log('✅ 没有勾选任何问题，显示选择提示');
-      showSelectionPrompt();
-    } else {
-      console.log('✅ 有勾选问题，隐藏选择提示');
-      hideSelectionPrompt();
+    // 根据是否有勾选的问题来显示/隐藏分析图表
+    const scrollableContent = document.querySelector('.combined-audio-analysis-container .scrollable-content');
+    if (scrollableContent) {
+      if (!hasActiveIssues) {
+        console.log('✅ 没有勾选任何问题，隐藏分析图表');
+        scrollableContent.style.display = 'none';
+        showSelectionPrompt();
+      } else {
+        console.log('✅ 有勾选问题，显示分析图表');
+        scrollableContent.style.display = 'block';
+        hideSelectionPrompt();
+      }
     }
   };
   
@@ -2607,9 +2620,9 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
   window.exportCombinedChartData = () => {
     const csvData = [
       '时间戳,AEC Delay(ms),Signal Level,Record Volume,问题状态',
-      ...aecDelayData.data.map((point, index) => {
-        const signalPoint = signalLevelData.data[index] || { value: 0 };
-        const recordPoint = recordSignalVolumeData.data[index] || { value: 0 };
+      ...safeAecDelayData.data.map((point, index) => {
+        const signalPoint = safeSignalLevelData.data[index] || { value: 0 };
+        const recordPoint = safeRecordSignalVolumeData.data[index] || { value: 0 };
         const issues = window.audioAnalysisIssues || {};
         const issueInfo = Object.entries(issues)
           .filter(([key, value]) => value)
@@ -2641,9 +2654,14 @@ function createCombinedChart(aecDelayData, signalLevelData, recordSignalVolumeDa
   const canvas = document.getElementById('combinedChart');
   if (!canvas) return;
 
-  const aecPrepared = prepareChartData(aecDelayData.data);
-  const signalPrepared = prepareChartData(signalLevelData.data);
-  const recordPrepared = prepareChartData(recordSignalVolumeData.data);
+  // 安全访问数据，避免 null/undefined 错误
+  const safeAecDelayData = aecDelayData || { data: [] };
+  const safeSignalLevelData = signalLevelData || { data: [] };
+  const safeRecordSignalVolumeData = recordSignalVolumeData || { data: [] };
+
+  const aecPrepared = prepareChartData(safeAecDelayData.data);
+  const signalPrepared = prepareChartData(safeSignalLevelData.data);
+  const recordPrepared = prepareChartData(safeRecordSignalVolumeData.data);
   
   if (window.combinedChartInstance) {
     window.combinedChartInstance.destroy();
@@ -2705,8 +2723,8 @@ function createCombinedChart(aecDelayData, signalLevelData, recordSignalVolumeDa
           callbacks: {
             title: function(context) {
               const i = context[0].dataIndex;
-              const ts = aecDelayData.data[i].timestamp;
-              return new Date(ts).toLocaleString();
+              const ts = safeAecDelayData.data[i]?.timestamp;
+              return ts ? new Date(ts).toLocaleString() : '';
             }
           }
         }
@@ -2899,10 +2917,18 @@ function addNewMetric(metricKey, config) {
 // 创建组合备用图表（当Chart.js无法加载时使用）
 function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData, responseText) {
   console.log('使用备用图表显示组合音频分析数据');
-  
+
   // 提取音频卡顿相关指标数据
   const audioPlaybackFrequencyData = window.extractMetricData ? window.extractMetricData(responseText, 'Audio Playback Frequency') : null;
   const audioDownlinkPullTimeData = window.extractMetricData ? window.extractMetricData(responseText, 'AUDIO DOWNLINK PULL 10MS DATA TIME') : null;
+
+  // 安全访问数据，避免 null/undefined 错误
+  const safeAecDelayData = aecDelayData || { data: [] };
+  const safeSignalLevelData = signalLevelData || { data: [] };
+  const safeRecordSignalVolumeData = recordSignalVolumeData || { data: [] };
+  const safeErrorCodeData = errorCodeData || { data: [] };
+  const safeAudioPlaybackFrequencyData = audioPlaybackFrequencyData || { data: [] };
+  const safeAudioDownlinkPullTimeData = audioDownlinkPullTimeData || { data: [] };
   
   // 保存数据到全局变量，以便后续动态访问
   window.metricDataCache = {
@@ -2961,23 +2987,23 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
               <h4>📊 Audio AEC Delay 统计</h4>
               <div class="stat-item">
                 <span class="stat-label">数据点</span>
-                <span class="stat-value">${aecDelayData.data.length}</span>
+                <span class="stat-value">${safeAecDelayData.data.length}</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">平均延迟</span>
-                <span class="stat-value">${calculateAverageDelay(aecDelayData.data)}ms</span>
+                <span class="stat-value">${calculateAverageDelay(safeAecDelayData.data)}ms</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">最大延迟</span>
-                <span class="stat-value">${calculateMaxDelay(aecDelayData.data)}ms</span>
+                <span class="stat-value">${calculateMaxDelay(safeAecDelayData.data)}ms</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">变化次数</span>
-                <span class="stat-value">${calculateChangeCount(aecDelayData.data)}</span>
+                <span class="stat-value">${calculateChangeCount(safeAecDelayData.data)}</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">变化频率</span>
-                <span class="stat-value">${calculateChangeFrequency(aecDelayData.data)}</span>
+                <span class="stat-value">${calculateChangeFrequency(safeAecDelayData.data)}</span>
               </div>
             </div>
           </div>
@@ -2990,23 +3016,23 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
               <h4>📈 Audio Signal Level Nearin 统计</h4>
               <div class="stat-item">
                 <span class="stat-label">数据点</span>
-                <span class="stat-value">${signalLevelData.data.length}</span>
+                <span class="stat-value">${safeSignalLevelData.data.length}</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">平均信号</span>
-                <span class="stat-value">${calculateAverageDelay(signalLevelData.data)}</span>
+                <span class="stat-value">${calculateAverageDelay(safeSignalLevelData.data)}</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">最大信号</span>
-                <span class="stat-value">${calculateMaxDelay(signalLevelData.data)}</span>
+                <span class="stat-value">${calculateMaxDelay(safeSignalLevelData.data)}</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">变化次数</span>
-                <span class="stat-value">${calculateChangeCount(signalLevelData.data)}</span>
+                <span class="stat-value">${calculateChangeCount(safeSignalLevelData.data)}</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">变化频率</span>
-                <span class="stat-value">${calculateChangeFrequency(signalLevelData.data)}</span>
+                <span class="stat-value">${calculateChangeFrequency(safeSignalLevelData.data)}</span>
               </div>
             </div>
           </div>
@@ -3019,27 +3045,27 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
               <h4>🎵 A RECORD SIGNAL VOLUME 统计</h4>
               <div class="stat-item">
                 <span class="stat-label">数据点</span>
-                <span class="stat-value">${recordSignalVolumeData.data.length}</span>
+                <span class="stat-value">${safeRecordSignalVolumeData.data.length}</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">平均音量</span>
-                <span class="stat-value">${calculateAverageDelay(recordSignalVolumeData.data)}</span>
+                <span class="stat-value">${calculateAverageDelay(safeRecordSignalVolumeData.data)}</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">最大音量</span>
-                <span class="stat-value">${calculateMaxDelay(recordSignalVolumeData.data)}</span>
+                <span class="stat-value">${calculateMaxDelay(safeRecordSignalVolumeData.data)}</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">变化次数</span>
-                <span class="stat-value">${calculateChangeCount(recordSignalVolumeData.data)}</span>
+                <span class="stat-value">${calculateChangeCount(safeRecordSignalVolumeData.data)}</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">变化频率</span>
-                <span class="stat-value">${calculateChangeFrequency(recordSignalVolumeData.data)}</span>
+                <span class="stat-value">${calculateChangeFrequency(safeRecordSignalVolumeData.data)}</span>
               </div>
             </div>
           </div>
-          ${errorCodeData ? `
+          ${safeErrorCodeData.data && safeErrorCodeData.data.length > 0 ? `
           <div class="metric-row" data-metric="Chat Engine Error Code">
             <div class="metric-full-section">
               <h4>🚨 Chat Engine Error Code</h4>
@@ -3047,7 +3073,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
             </div>
           </div>
           ` : ''}
-          ${audioPlaybackFrequencyData ? `
+          ${safeAudioPlaybackFrequencyData.data && safeAudioPlaybackFrequencyData.data.length > 0 ? `
           <div class="metric-row" data-metric="Audio Playback Frequency">
             <div class="metric-data-section">
               <h4>⏸️ Audio Playback Frequency 数据</h4>
@@ -3057,28 +3083,28 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
               <h4>⏸️ Audio Playback Frequency 统计</h4>
               <div class="stat-item">
                 <span class="stat-label">数据点</span>
-                <span class="stat-value">${audioPlaybackFrequencyData.data.length}</span>
+                <span class="stat-value">${safeAudioPlaybackFrequencyData.data.length}</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">平均频率</span>
-                <span class="stat-value">${calculateAverageDelay(audioPlaybackFrequencyData.data)} Hz</span>
+                <span class="stat-value">${calculateAverageDelay(safeAudioPlaybackFrequencyData.data)} Hz</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">最大频率</span>
-                <span class="stat-value">${calculateMaxDelay(audioPlaybackFrequencyData.data)} Hz</span>
+                <span class="stat-value">${calculateMaxDelay(safeAudioPlaybackFrequencyData.data)} Hz</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">变化次数</span>
-                <span class="stat-value">${calculateChangeCount(audioPlaybackFrequencyData.data)}</span>
+                <span class="stat-value">${calculateChangeCount(safeAudioPlaybackFrequencyData.data)}</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">变化频率</span>
-                <span class="stat-value">${calculateChangeFrequency(audioPlaybackFrequencyData.data)}</span>
+                <span class="stat-value">${calculateChangeFrequency(safeAudioPlaybackFrequencyData.data)}</span>
               </div>
             </div>
           </div>
           ` : ''}
-          ${audioDownlinkPullTimeData ? `
+          ${safeAudioDownlinkPullTimeData.data && safeAudioDownlinkPullTimeData.data.length > 0 ? `
           <div class="metric-row" data-metric="AUDIO DOWNLINK PULL 10MS DATA TIME">
             <div class="metric-data-section">
               <h4>📥 AUDIO DOWNLINK PULL 10MS DATA TIME 数据</h4>
@@ -3088,23 +3114,23 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
               <h4>📥 AUDIO DOWNLINK PULL 10MS DATA TIME 统计</h4>
               <div class="stat-item">
                 <span class="stat-label">数据点</span>
-                <span class="stat-value">${audioDownlinkPullTimeData.data.length}</span>
+                <span class="stat-value">${safeAudioDownlinkPullTimeData.data.length}</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">平均时间</span>
-                <span class="stat-value">${calculateAverageDelay(audioDownlinkPullTimeData.data)} ms</span>
+                <span class="stat-value">${calculateAverageDelay(safeAudioDownlinkPullTimeData.data)} ms</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">最大时间</span>
-                <span class="stat-value">${calculateMaxDelay(audioDownlinkPullTimeData.data)} ms</span>
+                <span class="stat-value">${calculateMaxDelay(safeAudioDownlinkPullTimeData.data)} ms</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">变化次数</span>
-                <span class="stat-value">${calculateChangeCount(audioDownlinkPullTimeData.data)}</span>
+                <span class="stat-value">${calculateChangeCount(safeAudioDownlinkPullTimeData.data)}</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">变化频率</span>
-                <span class="stat-value">${calculateChangeFrequency(audioDownlinkPullTimeData.data)}</span>
+                <span class="stat-value">${calculateChangeFrequency(safeAudioDownlinkPullTimeData.data)}</span>
               </div>
             </div>
           </div>
@@ -3852,17 +3878,17 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
   document.body.appendChild(chartContainer);
 
   // 创建数据表格
-  createDataTable(aecDelayData.data, 'aecDataTable');
-  createDataTable(signalLevelData.data, 'signalDataTable');
-  createDataTable(recordSignalVolumeData.data, 'recordDataTable');
-  if (errorCodeData) {
-    createErrorCodeTable(errorCodeData, 'errorCodeDataTable');
+  createDataTable(safeAecDelayData.data, 'aecDataTable');
+  createDataTable(safeSignalLevelData.data, 'signalDataTable');
+  createDataTable(safeRecordSignalVolumeData.data, 'recordDataTable');
+  if (safeErrorCodeData.data && safeErrorCodeData.data.length > 0) {
+    createErrorCodeTable(safeErrorCodeData, 'errorCodeDataTable');
   }
-  if (audioPlaybackFrequencyData) {
-    createDataTable(audioPlaybackFrequencyData.data, 'audioPlaybackFrequencyDataTable');
+  if (safeAudioPlaybackFrequencyData.data && safeAudioPlaybackFrequencyData.data.length > 0) {
+    createDataTable(safeAudioPlaybackFrequencyData.data, 'audioPlaybackFrequencyDataTable');
   }
-  if (audioDownlinkPullTimeData) {
-    createDataTable(audioDownlinkPullTimeData.data, 'audioDownlinkPullTimeDataTable');
+  if (safeAudioDownlinkPullTimeData.data && safeAudioDownlinkPullTimeData.data.length > 0) {
+    createDataTable(safeAudioDownlinkPullTimeData.data, 'audioDownlinkPullTimeDataTable');
   }
   
   // 初始化时隐藏所有指标行（metric-row）
@@ -4034,12 +4060,18 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
     const hasActiveIssues = Object.values(issues).some(checked => checked);
     console.log('📊 是否有激活的问题:', hasActiveIssues);
     
-    if (!hasActiveIssues) {
-      console.log('✅ 没有勾选任何问题，显示选择提示');
-      showSelectionPrompt();
-    } else {
-      console.log('✅ 有勾选问题，隐藏选择提示');
-      hideSelectionPrompt();
+    // 根据是否有勾选的问题来显示/隐藏分析图表
+    const scrollableContent = document.querySelector('.combined-audio-analysis-container .scrollable-content');
+    if (scrollableContent) {
+      if (!hasActiveIssues) {
+        console.log('✅ 没有勾选任何问题，隐藏分析图表');
+        scrollableContent.style.display = 'none';
+        showSelectionPrompt();
+      } else {
+        console.log('✅ 有勾选问题，显示分析图表');
+        scrollableContent.style.display = 'block';
+        hideSelectionPrompt();
+      }
     }
   };
   
@@ -4340,9 +4372,9 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
   window.exportCombinedChartData = () => {
     const csvData = [
       '时间戳,AEC Delay(ms),Signal Level,Record Volume,问题状态',
-      ...aecDelayData.data.map((point, index) => {
-        const signalPoint = signalLevelData.data[index] || { value: 0 };
-        const recordPoint = recordSignalVolumeData.data[index] || { value: 0 };
+      ...safeAecDelayData.data.map((point, index) => {
+        const signalPoint = safeSignalLevelData.data[index] || { value: 0 };
+        const recordPoint = safeRecordSignalVolumeData.data[index] || { value: 0 };
         const issues = window.audioAnalysisIssues || {};
         const issueInfo = Object.entries(issues)
           .filter(([key, value]) => value)
