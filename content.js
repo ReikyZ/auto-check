@@ -1707,6 +1707,7 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
         <button class="close-chart" onclick="this.parentElement.parentElement.remove()">×</button>
       </div>
       <div class="chart-content">
+        ${window.hasNewVersion ? '<div class="update-banner">已有新版，请更新 ⏬ <a href="https://github.com/ReikyZ/auto-check/archive/refs/heads/main.zip" target="_blank" class="update-link">点击下载</a></div>' : ''}
         <div class="base-info">
           <h4>基本信息</h4>
         </div>
@@ -2949,6 +2950,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
       <button class="close-chart" onclick="this.parentElement.parentElement.remove()">×</button>
     </div>
     <div class="chart-content">
+      ${window.hasNewVersion ? '<div class="update-banner">已有新版，请更新 <a href="https://github.com/ReikyZ/auto-check/archive/refs/heads/main.zip" target="_blank" class="update-link">点击下载</a></div>' : ''}
       <div class="base-info">
         <h4>基本信息</h4>
       </div>
@@ -4455,7 +4457,6 @@ function createErrorCodeTable(errorCodeData, containerId = 'errorCodeDataTable')
       const row = document.createElement('tr');
       const time = new Date(timestamp).toLocaleTimeString();
 
-      console.log('SSSSS time', time);
       row.innerHTML = `
         <td>${time}</td>
         <td style="font-family: monospace; font-weight: bold;">${errorCode !== null ? errorCode : '-'}</td>
@@ -4634,9 +4635,19 @@ function waitForAllElements(selector, timeout = 5000) {
   });
 }
 
+
 // 页面加载完成后执行
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', async () => {
+    // 检查版本更新
+    try {
+      const utilsModule = await import(chrome.runtime.getURL('src/utils.js'));
+      await utilsModule.checkForUpdates();
+    } catch (error) {
+      console.warn('❌ 加载 utilsModule 或版本检查失败:', error);
+      window.hasNewVersion = false;
+    }
+
     // 先加载问题类型规则表
     try {
       await loadIssueRules();
@@ -4644,14 +4655,23 @@ if (document.readyState === 'loading') {
     } catch (error) {
       console.warn('问题类型规则表加载失败，将使用默认行为:', error);
     }
-    
+
     injectAutoCheckButton();
     // 启动网络监听
     monitorNetworkRequests();
   });
 } else {
-  // 立即执行时也加载规则表
+  // 检查版本更新
   (async () => {
+    try {
+      const utilsModule = await import(chrome.runtime.getURL('src/utils.js'));
+      await utilsModule.checkForUpdates();
+    } catch (error) {
+      console.warn('❌ 加载 utilsModule 或版本检查失败:', error);
+      window.hasNewVersion = false;
+    }
+
+    // 立即执行时也加载规则表
     try {
       await loadIssueRules();
       console.log('问题类型规则表加载成功');
@@ -4659,7 +4679,7 @@ if (document.readyState === 'loading') {
       console.warn('问题类型规则表加载失败，将使用默认行为:', error);
     }
   })();
-  
+
   injectAutoCheckButton();
   // 启动网络监听
   monitorNetworkRequests();

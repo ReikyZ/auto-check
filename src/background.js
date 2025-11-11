@@ -195,4 +195,48 @@ setInterval(() => {
   );
 }, 5 * 60 * 1000); // 每5分钟清理一次
 
+// 处理来自 content script 的消息
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === 'getVersion') {
+    console.log('📡 Background: 收到获取版本请求');
+
+    const versionUrl = chrome.runtime.getURL('version');
+    console.log('🔗 版本文件URL:', versionUrl);
+
+    fetch(versionUrl)
+      .then(response => {
+        console.log('📄 版本文件响应:', response);
+        console.log('📄 响应状态:', response.status, response.ok);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        return response.text();
+      })
+      .then(version => {
+        console.log('📋 版本内容:', version);
+        const trimmedVersion = version ? version.trim() : '';
+        sendResponse({ success: true, version: trimmedVersion });
+      })
+      .catch(error => {
+        console.error('❌ 获取版本失败:', error);
+
+        // 确保总是返回有意义的错误消息
+        let errorMessage = '未知错误';
+        if (error) {
+          errorMessage = error.message || error.toString() || '获取版本时发生错误';
+        }
+
+        console.error('❌ 错误消息:', errorMessage);
+        sendResponse({ success: false, error: errorMessage });
+      });
+
+    return true; // 保持消息通道开放以进行异步响应
+  }
+  
+  // 如果消息不匹配，返回 false 表示不会异步响应
+  return false;
+});
+
 console.log('Background script已加载');

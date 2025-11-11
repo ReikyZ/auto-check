@@ -752,3 +752,53 @@
 .data-table::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
+
+/* 更新提示跑马灯样式 */
+.update-banner {
+  background: linear-gradient(90deg, #ff6b6b, #ffa500, #ff6b6b);
+  background-size: 200% 100%;
+  color: white;
+  padding: 8px 16px;
+  margin-bottom: 10px;
+  border-radius: 4px;
+  font-weight: bold;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  animation: marquee 3s linear infinite;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.update-banner::before {
+  content: '🚨';
+  margin-right: 8px;
+}
+
+.update-banner .update-link {
+  color: #fff;
+  text-decoration: underline;
+  font-weight: bold;
+  margin-left: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.update-banner .update-link:hover {
+  color: #ffff00;
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+  transform: scale(1.05);
+}
+
+.update-banner .update-link:active {
+  transform: scale(0.95);
+}
+
+@keyframes marquee {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}

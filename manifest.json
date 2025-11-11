@@ -40,7 +40,8 @@
         "src/metrics/*.js",
         "src/base-info.js",
         "src/metrics/aec-delay.js",
-        "src/metrics/error-code.js"
+        "src/metrics/error-code.js",
+        "version"
       ],
       "matches": [
         "<all_urls>"

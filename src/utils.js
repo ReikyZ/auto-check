@@ -237,6 +237,83 @@ export const extractMetricData = (responseText, metricName) => {
   return null;
 };
 
+/**
+ * 版本检查函数
+ * 获取本地和远程版本并比较，如果本地版本小于远程版本则标记需要更新
+ * @returns {Promise<void>}
+ */
+export const checkForUpdates = async () => {
+  try {
+    console.log('🔄 开始版本检查...');
+
+    // 方案1：直接从版本模块获取本地版本（推荐）
+    let localVersion;
+    try {
+      const versionModule = await import(chrome.runtime.getURL('src/version.js'));
+      localVersion = versionModule.VERSION || versionModule.default || 1;
+      console.log('📦 从 version.js 模块获取本地版本:', localVersion);
+    } catch (importError) {
+      console.warn('⚠️ 无法导入 version.js，尝试备用方案:', importError);
+      
+      // 方案2：备用方案 - 使用 chrome.storage
+      try {
+        const result = await chrome.storage.local.get(['appVersion']);
+        if (result.appVersion) {
+          localVersion = parseInt(result.appVersion);
+          console.log('📦 从 chrome.storage 获取本地版本:', localVersion);
+        } else {
+          // 方案3：最后备用方案 - 使用默认值
+          localVersion = 1;
+          console.warn('⚠️ 使用默认版本号:', localVersion);
+        }
+      } catch (storageError) {
+        console.warn('⚠️ chrome.storage 获取失败，使用默认版本:', storageError);
+        localVersion = 1;
+      }
+    }
+
+    // 获取远程版本
+    const remoteVersionResponse = await fetch('https://raw.githubusercontent.com/ReikyZ/auto-check/refs/heads/main/version');
+    console.log('🌐 远程版本响应:', remoteVersionResponse);
+
+    if (!remoteVersionResponse.ok) {
+      throw new Error(`远程版本请求失败: ${remoteVersionResponse.status}`);
+    }
+
+    const remoteVersionText = await remoteVersionResponse.text();
+    console.log('📄 远程版本文本:', remoteVersionText, typeof remoteVersionText);
+
+    const remoteVersion = parseInt(remoteVersionText.trim());
+    console.log('🔢 远程版本数字:', remoteVersion);
+
+    console.log(`📦 本地版本: ${localVersion}, 远程版本: ${remoteVersion}`);
+
+    // 如果本地版本小于远程版本，设置更新标志
+    if (localVersion < remoteVersion) {
+      window.hasNewVersion = true;
+      console.log('🔄 发现新版本可用');
+    } else {
+      window.hasNewVersion = false;
+      console.log('✅ 已是最新版本');
+    }
+  } catch (error) {
+    console.warn('❌ 版本检查失败:', error);
+    console.warn('❌ 错误详情:', {
+      message: error?.message,
+      name: error?.name,
+      stack: error?.stack
+    });
+    
+    // 确保总是设置一个值，避免 undefined
+    window.hasNewVersion = false;
+    
+    // 如果是本地版本获取失败，尝试使用备用方案
+    if (error?.message?.includes('本地版本')) {
+      console.warn('⚠️ 本地版本获取失败，将跳过版本检查');
+    }
+  }
+};
+
 // ES6 默认导出
 export default {
   showNotification,
@@ -253,7 +330,8 @@ export default {
   calculateMaxDelay,
   calculateChangeCount,
   calculateChangeFrequency,
-  extractMetricData
+  extractMetricData,
+  checkForUpdates
 };
 
 // 同时暴露到全局作用域以保持兼容性
@@ -268,6 +346,7 @@ if (typeof window !== 'undefined') {
   window.calculateChangeCount = calculateChangeCount;
   window.calculateChangeFrequency = calculateChangeFrequency;
   window.extractMetricData = extractMetricData;
+  window.checkForUpdates = checkForUpdates;
 }
 
 console.log('✅ utils.js ES6 模块已加载');

@@ -44,7 +44,8 @@ module.exports = {
         { from: 'icons', to: 'icons' },
         { from: 'libs', to: 'libs' },
         { from: 'src/metrics', to: 'metrics' },
-        { from: 'src/issue-rules.js', to: 'src/issue-rules.js' }
+        { from: 'src/issue-rules.js', to: 'src/issue-rules.js' },
+        { from: 'src/version.js', to: 'src/version.js' }
       ]
     })
   ],
