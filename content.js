@@ -4586,6 +4586,11 @@ function injectButtonToInfoRight(infoRight, index) {
       voqa.parentNode.insertBefore(buttonContainer, voqa.nextSibling);
       
       console.log(`Auto Check按钮已成功添加到info_right[${index}]区域`);
+      
+      // 按钮添加后，延迟查找并打印 sids 值
+      setTimeout(() => {
+        findAndPrintSidsValues();
+      }, 500);
     } else {
       // 如果没有找到voqa，直接在info_right末尾添加
       const button = createAutoCheckButton();
@@ -4598,6 +4603,11 @@ function injectButtonToInfoRight(infoRight, index) {
       
       infoRight.appendChild(buttonContainer);
       console.log(`Auto Check按钮已添加到info_right[${index}]区域末尾`);
+      
+      // 按钮添加后，延迟查找并打印 sids 值
+      setTimeout(() => {
+        findAndPrintSidsValues();
+      }, 500);
     }
     
   } catch (error) {
@@ -4635,6 +4645,57 @@ function waitForAllElements(selector, timeout = 5000) {
   });
 }
 
+// 查找并打印 auto-check 按钮所在 counter-view div 中 sids 的 span 值
+function findAndPrintSidsValues() {
+  try {
+    // 查找所有 auto-check 按钮
+    const autoCheckButtons = document.querySelectorAll('.auto-check-btn');
+    
+    if (autoCheckButtons.length === 0) {
+      console.log('未找到 auto-check 按钮');
+      return;
+    }
+    
+    console.log(`找到 ${autoCheckButtons.length} 个 auto-check 按钮`);
+    
+    autoCheckButtons.forEach((button, buttonIndex) => {
+      // 向上查找 counter-view div
+      const counterView = button.closest('.counter-view');
+      
+      if (!counterView) {
+        console.log(`按钮[${buttonIndex}]: 未找到 counter-view div`);
+        return;
+      }
+      
+      // 在 counter-view div 中查找所有 class = sids 的元素
+      const sidsElements = counterView.querySelectorAll('.sids');
+      
+      if (sidsElements.length === 0) {
+        console.log(`按钮[${buttonIndex}]: 在 counter-view 中未找到 class=sids 的元素`);
+        return;
+      }
+      
+      console.log(`按钮[${buttonIndex}]: 找到 ${sidsElements.length} 个 sids 元素`);
+      
+      // 遍历每个 sids 元素，查找其中的 span
+      sidsElements.forEach((sidsElement, sidsIndex) => {
+        const spans = sidsElement.querySelectorAll('span');
+        
+        if (spans.length === 0) {
+          console.log(`  按钮[${buttonIndex}] -> sids[${sidsIndex}]: 未找到 span 元素`);
+        } else {
+          spans.forEach((span, spanIndex) => {
+            const spanValue = span.textContent || span.innerText || '';
+            console.log(`  按钮[${buttonIndex}] -> counter-view -> sids[${sidsIndex}] -> span[${spanIndex}]: "${spanValue}"`);
+          });
+        }
+      });
+    });
+  } catch (error) {
+    console.error('查找 sids 值失败:', error);
+  }
+}
+
 
 // 页面加载完成后执行
 if (document.readyState === 'loading') {
@@ -4659,6 +4720,11 @@ if (document.readyState === 'loading') {
     injectAutoCheckButton();
     // 启动网络监听
     monitorNetworkRequests();
+    
+    // 延迟执行，确保 DOM 完全加载
+    setTimeout(() => {
+      findAndPrintSidsValues();
+    }, 1000);
   });
 } else {
   // 检查版本更新
@@ -4683,6 +4749,11 @@ if (document.readyState === 'loading') {
   injectAutoCheckButton();
   // 启动网络监听
   monitorNetworkRequests();
+  
+  // 延迟执行，确保 DOM 完全加载
+  setTimeout(() => {
+    findAndPrintSidsValues();
+  }, 1000);
 }
 
 // 监听页面变化，动态添加按钮
@@ -4728,6 +4799,11 @@ function checkAndInjectNewButtons() {
     if (!existingButton) {
       console.log(`发现新的info_right[${index}]，准备添加按钮`);
       injectButtonToInfoRight(infoRight, index);
+      
+      // 按钮注入后，延迟查找并打印 sids 值
+      setTimeout(() => {
+        findAndPrintSidsValues();
+      }, 500);
     }
   });
 }

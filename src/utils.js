@@ -272,8 +272,8 @@ export const checkForUpdates = async () => {
       }
     }
 
-    // 获取远程版本
-    const remoteVersionResponse = await fetch('https://raw.githubusercontent.com/ReikyZ/auto-check/refs/heads/main/version');
+    // 获取远程版本（从 version.js 文件中提取 VERSION 值）
+    const remoteVersionResponse = await fetch('https://raw.githubusercontent.com/ReikyZ/auto-check/main/src/version.js');
     console.log('🌐 远程版本响应:', remoteVersionResponse);
 
     if (!remoteVersionResponse.ok) {
@@ -281,9 +281,17 @@ export const checkForUpdates = async () => {
     }
 
     const remoteVersionText = await remoteVersionResponse.text();
-    console.log('📄 远程版本文本:', remoteVersionText, typeof remoteVersionText);
+    console.log('📄 远程版本文件内容:', remoteVersionText);
 
-    const remoteVersion = parseInt(remoteVersionText.trim());
+    // 从 JavaScript 文件中提取 VERSION 的值
+    // 匹配模式: export const VERSION = 数字;
+    const versionMatch = remoteVersionText.match(/export\s+const\s+VERSION\s*=\s*(\d+)/);
+    
+    if (!versionMatch || !versionMatch[1]) {
+      throw new Error('无法从 version.js 文件中提取 VERSION 值');
+    }
+
+    const remoteVersion = parseInt(versionMatch[1], 10);
     console.log('🔢 远程版本数字:', remoteVersion);
 
     console.log(`📦 本地版本: ${localVersion}, 远程版本: ${remoteVersion}`);
