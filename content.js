@@ -1,3 +1,173 @@
+// ============================================
+// 注入 injected.js 脚本到页面上下文
+// ============================================
+function injectInjectedScript() {
+  // 防止重复注入
+  if (window.__injectedScriptInjected) {
+    return;
+  }
+  window.__injectedScriptInjected = true;
+  
+  try {
+    const script = document.createElement('script');
+    script.src = chrome.runtime.getURL('src/injected.js');
+    script.onload = function() {
+      console.log('✅ injected.js 已成功注入到页面上下文');
+      this.remove(); // 移除 script 标签
+    };
+    script.onerror = function() {
+      console.error('❌ 注入 injected.js 失败');
+      this.remove();
+    };
+    (document.head || document.documentElement).appendChild(script);
+  } catch (error) {
+    console.error('❌ 注入脚本时出错:', error);
+  }
+}
+
+// ============================================
+// 监听来自 injected.js 的消息
+// ============================================
+(function() {
+  // 防止重复设置
+  if (window.__contentScriptMessageListenerSetup) {
+    return;
+  }
+  window.__contentScriptMessageListenerSetup = true;
+  
+  // 初始化存储 counters 请求的 Map
+  if (!window.countersInterceptedRequests) {
+    window.countersInterceptedRequests = new Map();
+  }
+  
+  // 监听来自 injected script 的消息
+  window.addEventListener('message', function(event) {
+    // 安全检查：只处理来自同源的消息
+    // 注意：由于 injected script 在页面上下文中运行，event.source 是 window
+    if (event.data && event.data.source === 'INJECTED_SCRIPT') {
+      const messageType = event.data.type;
+      const data = event.data.data;
+      
+      // 处理保存 counters 数据的请求
+      if (messageType === 'SAVE_COUNTERS_DATA') {
+        if (data && data.sid && data.url && data.data) {
+          (async () => {
+            try {
+              const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
+              // saveData 参数: type, uid, url, data
+              await dataUtil.saveData('counters', data.sid, data.url, data.data);
+              if (window.__autoCheckDebug) {
+                console.log(`[Content Script] 已保存 counters_${data.sid} 到 dataUtil`);
+              }
+            } catch (e) {
+              console.warn('[Content Script] 保存 counters 数据到 dataUtil 失败:', e);
+            }
+          })();
+        }
+        return; // 处理完就返回，不继续处理
+      }
+      
+      if (messageType === 'NETWORK_REQUEST') {
+        console.log('📨 [Content Script] 收到来自 injected script 的网络请求数据:', data);
+        
+        // 存储请求信息
+        if (data.url) {
+          window.countersInterceptedRequests.set(data.url, {
+            url: data.url,
+            method: data.method,
+            type: data.type,
+            requestHeaders: data.requestHeaders,
+            requestBody: data.requestBody,
+            responseText: data.responseText,
+            status: data.status,
+            statusText: data.statusText,
+            responseHeaders: data.responseHeaders,
+            timestamp: data.timestamp,
+            error: data.error,
+            timeout: data.timeout,
+            errorMessage: data.errorMessage
+          });
+          
+          // console.log(`✅ [Content Script] 已存储 ${data.type} 请求数据:`, {
+          //   url: data.url,
+          //   status: data.status,
+          //   size: data.responseText ? data.responseText.length : 0
+          // });
+
+          // 如果 data.url 包含 /counters，解析出 uids 的值，并保存到 dataUtil
+          if (data.url && data.url.includes('/counters')) {
+            // 匹配 uids 参数
+            const uidsMatch = data.url.match(/[?&]uids=([^&]+)/);
+            if (uidsMatch && uidsMatch[1]) {
+              const uid = uidsMatch[1];
+              // 动态导入 data-util 并保存
+              (async () => {
+                try {
+                  const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
+                  // saveData 参数: type, uid, url, data
+                  await dataUtil.saveData('counters', uid, data.url, data.responseText);
+                  if (window.__autoCheckDebug) {
+                    console.log(`[Content Script] 已保存 counters_${uid} 到 dataUtil`);
+                  }
+                } catch (e) {
+                  console.warn('保存 counters 数据到 dataUtil 失败:', e);
+                }
+              })();
+            }
+          }
+
+
+          
+          // 如果有响应内容，尝试解析并打印
+          // if (data.responseText && !data.error && !data.timeout) {
+          //   console.log('📄 [Content Script] 响应内容:');
+          //   try {
+          //     const jsonData = JSON.parse(data.responseText);
+          //     console.log(JSON.stringify(jsonData, null, 2));
+          //   } catch (e) {
+          //     console.log(data.responseText);
+          //   }
+          // }
+          
+          // 触发自定义事件，通知其他代码有新的网络请求数据
+          window.dispatchEvent(new CustomEvent('networkRequestCaptured', {
+            detail: data
+          }));
+        }
+      }
+    }
+  });
+  
+  console.log('✅ [Content Script] 消息监听器已设置完成');
+})();
+
+// ============================================
+// 立即注入 injected.js 脚本
+// ============================================
+// 立即注入脚本到页面上下文，确保能捕获所有网络请求
+// 使用立即执行，不等待 DOMContentLoaded
+injectInjectedScript();
+
+// ============================================
+// 启动 background 的网络监控（保留原有功能）
+// ============================================
+if (typeof chrome !== 'undefined' && chrome.runtime) {
+  try {
+    chrome.runtime.sendMessage(
+      { type: 'START_NETWORK_MONITORING' },
+      (response) => {
+        if (response && response.success) {
+          console.log('✅ Background 网络监听启动成功');
+        } else {
+          console.warn('⚠️ Background 网络监听启动失败:', response);
+        }
+      }
+    );
+  } catch (error) {
+    console.warn('⚠️ 启动 Background 网络监听时出错:', error);
+  }
+}
+
 // 全局函数定义 - 确保在任何其他代码之前定义
 window.updateIssueStatus = function(issueType, isChecked) {
   console.log('updateIssueStatus called:', issueType, isChecked);
@@ -526,6 +696,10 @@ function printNetworkMonitoringStatus() {
 
 // 执行自动检查逻辑
 async function performAutoCheck(scopeRoot = document, scopeIndex = undefined) {
+  // 在函数顶部声明变量，确保在整个函数作用域内可用
+  let countersResponse = null;
+  let eventlistResponse = null;
+  
   try {
     // 获取当前页面的相关信息
     const url = window.location.href;
@@ -538,6 +712,9 @@ async function performAutoCheck(scopeRoot = document, scopeIndex = undefined) {
     
     // 收集限定范围内的 class uid 的值（仅 user-info 容器）
     const uidValues = collectUidValues(scopeRoot);
+    const sidValues = collectSidValues(scopeRoot);
+
+    console.log('sidValues:', sidValues);
     
     // 显示 uid 值弹窗
     const scopeLabel = scopeIndex !== undefined ? `info_right[${scopeIndex}]` : undefined;
@@ -556,30 +733,32 @@ async function performAutoCheck(scopeRoot = document, scopeIndex = undefined) {
       }
       
       const uid = uidValues[0].value;
-      countersResponse = await fecthResponse(uid, "counters");
-      eventlistResponse = await fecthResponse(uid, "eventlist");
-
-      // 使用 DataUtil 保存 countersResponse 和 eventlistResponse
+      // 从 dataUtil 获取 countersResponse 和 eventlistResponse
       try {
-        // 动态导入 data-util 模块
         const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
+        countersResponse = await dataUtil.getData('counters', uid);
         
-        if (countersResponse) {
-          // 构建 counters URL
-          const countersUrl = `counters?uids=${uid}`;
-          dataUtil.saveData('counters', uid, countersUrl, countersResponse);
-          console.log('✅ countersResponse 已保存到 DataUtil:', { uid, url: countersUrl });
+        
+        if (!countersResponse && sidValues) {
+          // sidValues 可能为 sid 数组，也可能为字符串
+          let sid = null;
+          if (Array.isArray(sidValues) && sidValues.length > 0) {
+            sid = sidValues[0].value || sidValues[0];
+          } else if (typeof sidValues === 'string' && sidValues) {
+            sid = sidValues;
+          }
+          if (sid) {
+            countersResponse = await dataUtil.getData('counters', sid);
+          }
         }
         
-        if (eventlistResponse) {
-          // 构建 eventlist URL  
-          const eventlistUrl = `eventlist?uid=${uid}`;
-          dataUtil.saveData('eventlist', uid, eventlistUrl, eventlistResponse);
-          console.log('✅ eventlistResponse 已保存到 DataUtil:', { uid, url: eventlistUrl });
-        }
-      } catch (error) {
-        console.error('❌ 保存数据到 DataUtil 失败:', error);
+
+        eventlistResponse = await dataUtil.getData('eventlist', uid);
+      } catch (e) {
+        console.error('❌ 从 dataUtil 获取数据失败:', e);
       }
+
+  
     }
     
     // 拿到响应后再执行分析
@@ -638,6 +817,215 @@ function fecthResponse(uidValue, type) {
     console.log('  Response: <重新请求失败>', e && e.message);
     return null;
   }
+}
+
+// 设置 counters 网络请求拦截器（在页面加载早期立即执行）
+function setupCountersInterceptors() {
+  // 防止重复设置
+  if (window.__countersInterceptorsSetup) {
+    return;
+  }
+  window.__countersInterceptorsSetup = true;
+  
+  console.log('🚀 立即启动 counters 网络请求拦截器...');
+  
+  // 初始化存储 counters 请求的 Map
+  if (!window.countersInterceptedRequests) {
+    window.countersInterceptedRequests = new Map();
+  }
+  
+  // 拦截 fetch 请求
+  const originalFetch = window.fetch;
+  window.fetch = async function(...args) {
+    const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
+    
+    // 检查是否是 counters 请求
+    if (url && typeof url === 'string' && url.includes('counters')) {
+      console.log('🔵 拦截到 fetch 请求:', url);
+      
+      try {
+        const response = await originalFetch.apply(this, args);
+        
+        // 克隆响应以便读取内容而不影响原始响应
+        const clonedResponse = response.clone();
+        const responseText = await clonedResponse.text();
+        
+        // 存储请求信息
+        window.countersInterceptedRequests.set(url, {
+          url: url,
+          method: 'POST', // fetch 默认方法
+          type: 'fetch',
+          responseText: responseText,
+          status: response.status,
+          statusText: response.statusText,
+          headers: Object.fromEntries(response.headers.entries()),
+          timestamp: new Date().toISOString()
+        });
+        
+        console.log(`✅ 已捕获 fetch 响应 (${url}):`, {
+          status: response.status,
+          contentType: response.headers.get('content-type'),
+          size: responseText.length
+        });
+        
+        // 打印响应内容
+        console.log('📄 Fetch 响应内容:');
+        try {
+          const jsonData = JSON.parse(responseText);
+          console.log(JSON.stringify(jsonData, null, 2));
+        } catch (e) {
+          console.log(responseText);
+        }
+        
+        return response;
+      } catch (error) {
+        console.error('❌ Fetch 请求失败:', error);
+        throw error;
+      }
+    }
+    
+    return originalFetch.apply(this, args);
+  };
+  
+  // 拦截 XMLHttpRequest
+  const originalXHROpen = XMLHttpRequest.prototype.open;
+  const originalXHRSend = XMLHttpRequest.prototype.send;
+  
+  XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+    this._method = method;
+    this._url = url;
+    this._isCountersRequest = url && typeof url === 'string' && url.includes('counters');
+    
+    if (this._isCountersRequest) {
+      console.log('🟢 拦截到 XHR 请求:', method, url);
+      
+      // 监听响应
+      this.addEventListener('load', function() {
+        if (this._isCountersRequest && this.responseText) {
+          const fullUrl = url.startsWith('http') ? url : window.location.origin + url;
+          
+          // 存储请求信息
+          window.countersInterceptedRequests.set(fullUrl, {
+            url: fullUrl,
+            method: method,
+            type: 'xhr',
+            responseText: this.responseText,
+            status: this.status,
+            statusText: this.statusText,
+            headers: this.getAllResponseHeaders(),
+            timestamp: new Date().toISOString()
+          });
+          
+          console.log(`✅ 已捕获 XHR 响应 (${fullUrl}):`, {
+            status: this.status,
+            contentType: this.getResponseHeader('content-type'),
+            size: this.responseText.length
+          });
+          
+          // 打印响应内容
+          console.log('📄 XHR 响应内容:');
+          try {
+            const jsonData = JSON.parse(this.responseText);
+            console.log(JSON.stringify(jsonData, null, 2));
+          } catch (e) {
+            console.log(this.responseText);
+          }
+        }
+      });
+      
+      this.addEventListener('error', function() {
+        if (this._isCountersRequest) {
+          console.error('❌ XHR 请求失败:', url);
+        }
+      });
+    }
+    
+    return originalXHROpen.apply(this, [method, url, ...rest]);
+  };
+  
+  XMLHttpRequest.prototype.send = function(...args) {
+    return originalXHRSend.apply(this, args);
+  };
+  
+  console.log('✅ counters 网络请求拦截器已设置完成');
+}
+
+// 查找并打印 counters 响应内容
+// 查询已捕获的 counters 请求并打印
+async function findResponse() {
+  console.log('🔍 开始查找 counters 响应内容（通过拦截 fetch & XHR）...');
+  
+  // 确保拦截器已设置
+  if (!window.__countersInterceptorsSetup) {
+    setupCountersInterceptors();
+  }
+  
+  // 初始化存储 counters 请求的 Map
+  if (!window.countersInterceptedRequests) {
+    window.countersInterceptedRequests = new Map();
+  }
+  
+  // 从 Performance API 获取已完成的 counters 请求
+  try {
+    const resources = performance.getEntriesByType('resource');
+    const countersResources = resources.filter(entry => 
+      entry.name && typeof entry.name === 'string' && entry.name.includes('counters')
+    );
+    
+    if (countersResources.length > 0) {
+      console.log(`\n📊 从 Performance API 找到 ${countersResources.length} 个 counters 请求:`);
+      
+      for (const entry of countersResources) {
+        console.log(`  - ${entry.name} (${entry.initiatorType})`);
+        
+        // 如果还没有拦截到，尝试重新获取
+        if (!window.countersInterceptedRequests.has(entry.name)) {
+          try {
+            const response = await fetch(entry.name, { credentials: 'include' });
+            if (response.ok) {
+              const responseText = await response.text();
+              window.countersInterceptedRequests.set(entry.name, {
+                url: entry.name,
+                method: 'GET',
+                type: 'performance-api',
+                responseText: responseText,
+                status: response.status,
+                statusText: response.statusText,
+                headers: Object.fromEntries(response.headers.entries()),
+                timestamp: new Date().toISOString()
+              });
+              
+              console.log(`  ✅ 已获取响应内容 (${entry.name})`);
+              console.log('  📄 响应内容:');
+              try {
+                const jsonData = JSON.parse(responseText);
+                console.log(JSON.stringify(jsonData, null, 2));
+              } catch (e) {
+                console.log(responseText);
+              }
+            }
+          } catch (error) {
+            console.warn(`  ⚠️ 无法获取响应:`, error.message);
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️ 从 Performance API 获取请求失败:', error);
+  }
+  
+  // 打印所有已捕获的 counters 请求摘要
+  if (window.countersInterceptedRequests.size > 0) {
+    console.log(`\n📋 已捕获 ${window.countersInterceptedRequests.size} 个 counters 请求:`);
+    window.countersInterceptedRequests.forEach((data, url) => {
+      console.log(`  - [${data.type.toUpperCase()}] ${data.method} ${url} (状态: ${data.status})`);
+    });
+  } else {
+    console.log('\n⚠️ 尚未捕获到 counters 请求，拦截器已设置，等待新的请求...');
+    console.log('💡 提示: 如果页面已经加载完成，可以刷新页面或触发相关操作来生成新的 counters 请求');
+  }
+  
+  console.log('\n✅ counters 响应内容查找完成（拦截器已激活）');
 }
 
 // 智能提取 UID 值
@@ -754,6 +1142,80 @@ function collectUidValues(userInfoContainer) {
   
   console.log(`在指定的 user-info 容器中找到 ${uidValues.length} 个 uid 元素:`, uidValues);
   return uidValues;
+}
+
+// 收集 counter-view 中 sids 的第二个 span 值
+function collectSidValues(scopeRoot) {
+  const sidValues = [];
+  
+  try {
+    // 在 scopeRoot 中查找 auto-check 按钮
+    let autoCheckButton = null;
+    
+    // 如果 scopeRoot 本身就是 auto-check 按钮
+    if (scopeRoot && scopeRoot.classList && scopeRoot.classList.contains('auto-check-btn')) {
+      autoCheckButton = scopeRoot;
+    } else {
+      // 在 scopeRoot 中查找 auto-check 按钮
+      autoCheckButton = scopeRoot.querySelector ? scopeRoot.querySelector('.auto-check-btn') : null;
+    }
+    
+    if (!autoCheckButton) {
+      console.log('未找到 auto-check 按钮');
+      return sidValues;
+    }
+    
+    // 向上查找 counter-view div
+    const counterView = autoCheckButton.closest('.counter-view');
+    
+    if (!counterView) {
+      console.log('未找到 counter-view div');
+      return sidValues;
+    }
+    
+    // 在 counter-view div 中查找所有 class = sids 的元素
+    const sidsElements = counterView.querySelectorAll('.sids');
+    
+    if (sidsElements.length === 0) {
+      console.log('在 counter-view 中未找到 class=sids 的元素');
+      return sidValues;
+    }
+    
+    // 收集所有 sids 元素中的所有 span
+    const allSpans = [];
+    sidsElements.forEach((sidsElement) => {
+      const spans = sidsElement.querySelectorAll('span');
+      spans.forEach((span) => {
+        allSpans.push(span);
+      });
+    });
+    
+    // 获取第二个 span 的值（索引为 1）
+    if (allSpans.length >= 2) {
+      const secondSpan = allSpans[1];
+      const spanValue = secondSpan.textContent || secondSpan.innerText || '';
+      
+      sidValues.push({
+        index: 1,
+        value: spanValue.trim(),
+        tagName: secondSpan.tagName.toLowerCase(),
+        className: secondSpan.className,
+        id: secondSpan.id || '',
+        element: secondSpan,
+        containerInfo: {
+          containerIndex: 1,
+          containerId: counterView.id || '',
+          containerClasses: counterView.className
+        }
+      });
+      
+      return spanValue.trim();
+    }
+    return null;
+  } catch (error) {
+    console.error('收集 sid 值时出错:', error);
+    return null;
+  }
 }
 
 // 显示 uid 值弹窗
@@ -4725,6 +5187,10 @@ if (document.readyState === 'loading') {
     setTimeout(() => {
       findAndPrintSidsValues();
     }, 1000);
+
+    setTimeout(() => {
+      findResponse();
+    }, 1500);
   });
 } else {
   // 检查版本更新
@@ -4754,6 +5220,10 @@ if (document.readyState === 'loading') {
   setTimeout(() => {
     findAndPrintSidsValues();
   }, 1000);
+
+  setTimeout(() => {
+    findResponse();
+  }, 1500);
 }
 
 // 监听页面变化，动态添加按钮

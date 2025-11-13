@@ -37,6 +37,7 @@
       "resources": [
         "libs/chart.umd.js",
         "src/*.js",
+        "src/injected.js",
         "src/metrics/*.js",
         "src/base-info.js",
         "src/metrics/aec-delay.js",

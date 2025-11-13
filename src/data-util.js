@@ -63,7 +63,7 @@ export function getData(type, uid) {
     }
 
     const key = generateStorageKey(type, uid);
-    const stored = sessionStorage.getItem(key).toString();
+    const stored = sessionStorage.getItem(key);
     
     if (!stored) {
       if (window.__autoCheckDebug) {
@@ -72,14 +72,14 @@ export function getData(type, uid) {
       return null;
     }
 
-    const data = stored;
+    // 返回存储的字符串数据（响应文本）
+    const data = stored.toString();
     
     if (window.__autoCheckDebug) {
       console.log(`✅ [DataUtil] 获取数据成功:`, {
         type,
         uid,
-        url: data.url?.substring(0, 100) + '...',
-        timestamp: data.timestamp
+        dataSize: data.length
       });
     }
     

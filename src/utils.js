@@ -281,7 +281,6 @@ export const checkForUpdates = async () => {
     }
 
     const remoteVersionText = await remoteVersionResponse.text();
-    console.log('📄 远程版本文件内容:', remoteVersionText);
 
     // 从 JavaScript 文件中提取 VERSION 的值
     // 匹配模式: export const VERSION = 数字;
