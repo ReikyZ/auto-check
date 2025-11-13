@@ -66,7 +66,26 @@ function injectInjectedScript() {
         }
         return; // 处理完就返回，不继续处理
       }
+
       
+      if (messageType === 'SAVE_EVENTS_DATA') {
+        if (data && data.sid && data.url && data.data) {
+          (async () => {
+            try {
+              const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
+              // saveData 参数: type, uid, url, data
+              await dataUtil.saveData('events', data.sid, data.url, data.data);
+              if (window.__autoCheckDebug) {
+                console.log(`[Content Script] 已保存 events_${data.sid} 到 dataUtil`);
+              }
+            } catch (e) {
+              console.warn('[Content Script] 保存 events 数据到 dataUtil 失败:', e);
+            }
+          })();
+        }
+        return; // 处理完就返回，不继续处理
+      }
+
       if (messageType === 'NETWORK_REQUEST') {
         console.log('📨 [Content Script] 收到来自 injected script 的网络请求数据:', data);
         
@@ -736,8 +755,10 @@ async function performAutoCheck(scopeRoot = document, scopeIndex = undefined) {
       // 从 dataUtil 获取 countersResponse 和 eventlistResponse
       try {
         const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
+
+
         countersResponse = await dataUtil.getData('counters', uid);
-        
+        eventlistResponse = await dataUtil.getData('eventlist', uid);
         
         if (!countersResponse && sidValues) {
           // sidValues 可能为 sid 数组，也可能为字符串
@@ -753,7 +774,18 @@ async function performAutoCheck(scopeRoot = document, scopeIndex = undefined) {
         }
         
 
-        eventlistResponse = await dataUtil.getData('eventlist', uid);
+        if (!eventlistResponse && sidValues) {
+          let sid = null;
+          if (Array.isArray(sidValues) && sidValues.length > 0) {
+            sid = sidValues[0].value || sidValues[0];
+          } else if (typeof sidValues === 'string' && sidValues) {
+            sid = sidValues;
+          }
+          if (sid) {
+            eventlistResponse = await dataUtil.getData('events', sid);
+          }
+        }
+      
       } catch (e) {
         console.error('❌ 从 dataUtil 获取数据失败:', e);
       }

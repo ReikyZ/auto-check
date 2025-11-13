@@ -43,6 +43,7 @@
       url.includes('counters') || 
       url.includes('counter') ||
       url.includes('metric') ||
+      url.includes('events') ||
       url.includes('stats')
     );
     
@@ -156,7 +157,54 @@
               console.log(xhr.responseText);
             }
           }
-          
+
+          if (fullUrl.includes('/events')) {
+            try {
+              const jsonData = JSON.parse(xhr.responseText);
+              console.log(JSON.stringify(jsonData, null, 2));
+
+              // INSERT_YOUR_CODE
+              // 获取第一个 sid 的值
+              let sid = null;
+              if (jsonData && typeof jsonData === 'object') {
+                // 常见结构是 { data: { sid: "xxx" } } 或直接 { sid: "..." }
+                if ('sid' in jsonData) {
+                  sid = jsonData.sid;
+                } else if (jsonData.data && typeof jsonData.data === 'object' && 'sid' in jsonData.data) {
+                  sid = jsonData.data.sid;
+                } else {
+                  // 遍历查找
+                  function findSid(obj) {
+                    for (const k in obj) {
+                      if (k === 'sid') return obj[k];
+                      if (typeof obj[k] === 'object') {
+                        const found = findSid(obj[k]);
+                        if (found) return found;
+                      }
+                    }
+                    return null;
+                  }
+                  sid = findSid(jsonData);
+                }
+              }
+
+              // INSERT_YOUR_CODE
+              // 通过消息通知 content script 保存数据（因为 injected script 无法直接使用 chrome.runtime.getURL）
+              if (sid) {
+                sendToContentScript({
+                  sid: sid,
+                  url: fullUrl,
+                  data: xhr.responseText
+                }, 'SAVE_EVENTS_DATA');
+                if (window.__autoCheckDebug) {
+                  console.log(`[Injected] 已发送保存 events_${sid} 的请求到 content script`);
+                }
+              }
+              // console.log(JSON.stringify(jsonData, null, 2));
+            } catch (e) {
+              console.log(xhr.responseText);
+            }
+          }
           // 发送到 content script
           sendToContentScript(requestData);
         } catch (error) {
