@@ -65,7 +65,53 @@
   
   XMLHttpRequest.prototype.send = function(...args) {
     const xhr = this;
-    const requestBody = args[0] || null;
+    let requestBody = args[0] || null;
+    
+    // 如果是 /counters 请求，修改请求体，在 counterIds 中添加 5
+    if (xhr._url && xhr._url.includes('/counters') && requestBody) {
+      try {
+        let bodyObj = null;
+        if (typeof requestBody === 'string') {
+          bodyObj = JSON.parse(requestBody);
+        } else if (typeof requestBody === 'object') {
+          bodyObj = requestBody;
+        }
+        
+        if (bodyObj && Array.isArray(bodyObj.counterIds)) {
+          // 如果 counterIds 中还没有 5，则添加
+          // 从 ext-counter.js 文件导入要添加的 counterIds
+          let extCounterIds = [];
+          try {
+            extCounterIds = window.__EXT_COUNTER_IDS__;
+            if (!Array.isArray(extCounterIds)) {
+              // 如果 window 变量不存在，尝试动态导入 ext-counter.js
+              // 注意 injected.js 运行在页面环境，import 只有在 module 环境支持，否则可使用 script 注入式
+              // 这里假定 ext-counter.js 被 content.js 注入到页面全局（推荐）。否则需用 fetch 动态加载
+              extCounterIds = [];
+            }
+          } catch (e) {
+            extCounterIds = [];
+          }
+          if (!Array.isArray(extCounterIds)) extCounterIds = [];
+
+          let addedIds = [];
+          for (const addId of extCounterIds) {
+            if (!bodyObj.counterIds.includes(addId)) {
+              bodyObj.counterIds.push(addId);
+              addedIds.push(addId);
+            }
+          }
+          if (addedIds.length > 0) {
+            // 更新请求体
+            requestBody = typeof args[0] === 'string' ? JSON.stringify(bodyObj) : bodyObj;
+            args[0] = requestBody;
+            console.log(`[Injected] ✅ 已在 /counters 请求的 counterIds 中添加: ${addedIds.join(', ')}`);
+          }
+        }
+      } catch (e) {
+        console.warn('[Injected] 修改 /counters 请求体失败:', e);
+      }
+    }
     
     if (xhr._shouldIntercept) {
       xhr._requestBody = requestBody;
@@ -89,6 +135,7 @@
             });
           }
           
+          console.log('SSSSS requestBody:', requestBody);
           const requestData = {
             url: fullUrl,
             method: xhr._method,
@@ -251,8 +298,61 @@
     const input = args[0];
     const init = args[1] || {};
     
+    // 确保 args[1] 存在，以便后续修改
+    if (!args[1]) {
+      args[1] = init;
+    }
+    
     // 获取 URL
     const url = typeof input === 'string' ? input : input?.url || '';
+    
+    // 如果是 /counters 请求，修改请求体，在 counterIds 中添加 5
+    if (url && url.includes('/counters') && init.body) {
+      try {
+        let bodyObj = null;
+        const originalBodyType = typeof init.body;
+        if (typeof init.body === 'string') {
+          bodyObj = JSON.parse(init.body);
+        } else if (init.body instanceof FormData) {
+          // FormData 无法直接修改，需要跳过
+        } else if (typeof init.body === 'object' && init.body !== null) {
+          bodyObj = init.body;
+        }
+        
+        if (bodyObj && Array.isArray(bodyObj.counterIds)) {
+          // 从 ext-counter.js 文件导入要添加的 counterIds
+          let extCounterIds = [];
+          try {
+            extCounterIds = window.__EXT_COUNTER_IDS__;
+            if (!Array.isArray(extCounterIds)) {
+              // 如果 window 变量不存在，尝试动态导入 ext-counter.js
+              // 注意 injected.js 运行在页面环境，import 只有在 module 环境支持，否则可使用 script 注入式
+              // 这里假定 ext-counter.js 被 content.js 注入到页面全局（推荐）。否则需用 fetch 动态加载
+              extCounterIds = [];
+            }
+          } catch (e) {
+            extCounterIds = [];
+          }
+          if (!Array.isArray(extCounterIds)) extCounterIds = [];
+
+          let addedIds = [];
+          for (const addId of extCounterIds) {
+            if (!bodyObj.counterIds.includes(addId)) {
+              bodyObj.counterIds.push(addId);
+              addedIds.push(addId);
+            }
+          }
+          if (addedIds.length > 0) {
+            // 更新请求体
+            init.body = originalBodyType === 'string' ? JSON.stringify(bodyObj) : bodyObj;
+            args[1] = init;
+            console.log(`[Injected] ✅ 已在 /counters fetch 请求的 counterIds 中添加: ${addedIds.join(', ')}`);
+          }
+        }
+      } catch (e) {
+        console.warn('[Injected] 修改 /counters fetch 请求体失败:', e);
+      }
+    }
     
     // 检查是否需要拦截
     const shouldIntercept = url && typeof url === 'string' && (

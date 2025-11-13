@@ -1,4 +1,31 @@
 // ============================================
+// 注入 ext-counter.js 脚本到页面上下文
+// ============================================
+function injectExtCounterScript() {
+  // 防止重复注入
+  if (window.__extCounterScriptInjected) {
+    return;
+  }
+  window.__extCounterScriptInjected = true;
+  
+  try {
+    const script = document.createElement('script');
+    script.src = chrome.runtime.getURL('src/ext-counter.js');
+    script.onload = function() {
+      console.log('✅ ext-counter.js 已成功注入到页面上下文');
+      this.remove(); // 移除 script 标签
+    };
+    script.onerror = function() {
+      console.error('❌ 注入 ext-counter.js 失败');
+      this.remove();
+    };
+    (document.head || document.documentElement).appendChild(script);
+  } catch (error) {
+    console.error('❌ 注入 ext-counter.js 脚本时出错:', error);
+  }
+}
+
+// ============================================
 // 注入 injected.js 脚本到页面上下文
 // ============================================
 function injectInjectedScript() {
@@ -161,11 +188,16 @@ function injectInjectedScript() {
 })();
 
 // ============================================
-// 立即注入 injected.js 脚本
+// 立即注入脚本
 // ============================================
-// 立即注入脚本到页面上下文，确保能捕获所有网络请求
+// 先注入 ext-counter.js，再注入 injected.js
+// 确保 ext-counter.js 在 injected.js 之前加载，这样 injected.js 就能读取到 window.__EXT_COUNTER_IDS__
 // 使用立即执行，不等待 DOMContentLoaded
-injectInjectedScript();
+injectExtCounterScript();
+// 延迟一点时间确保 ext-counter.js 先加载完成
+setTimeout(() => {
+  injectInjectedScript();
+}, 10);
 
 // ============================================
 // 启动 background 的网络监控（保留原有功能）
