@@ -165,25 +165,21 @@
               // INSERT_YOUR_CODE
               // 获取第一个 sid 的值
               let sid = null;
-              if (jsonData && typeof jsonData === 'object') {
-                // 常见结构是 { data: { sid: "xxx" } } 或直接 { sid: "..." }
-                if ('sid' in jsonData) {
-                  sid = jsonData.sid;
-                } else if (jsonData.data && typeof jsonData.data === 'object' && 'sid' in jsonData.data) {
-                  sid = jsonData.data.sid;
-                } else {
-                  // 遍历查找
-                  function findSid(obj) {
-                    for (const k in obj) {
-                      if (k === 'sid') return obj[k];
-                      if (typeof obj[k] === 'object') {
-                        const found = findSid(obj[k]);
-                        if (found) return found;
-                      }
-                    }
-                    return null;
+              // INSERT_YOUR_CODE
+              if (requestBody && typeof requestBody === 'object') {
+                // requestBody 直接就是对象
+                if ('sids' in requestBody && Array.isArray(requestBody.sids) && requestBody.sids.length > 0) {
+                  sid = requestBody.sids[0];
+                }
+              } else if (requestBody && typeof requestBody === 'string') {
+                // 可能是字符串形式的 JSON
+                try {
+                  const bodyObj = JSON.parse(requestBody);
+                  if ('sids' in bodyObj && Array.isArray(bodyObj.sids) && bodyObj.sids.length > 0) {
+                    sid = bodyObj.sids[0];
                   }
-                  sid = findSid(jsonData);
+                } catch (err) {
+                  // 不是有效的 JSON，忽略
                 }
               }
 
@@ -220,13 +216,15 @@
                 } else if (jsonData.data && typeof jsonData.data === 'object' && 'sid' in jsonData.data) {
                   sid = jsonData.data.sid;
                 } else {
-                  // 遍历查找
+                  // 遍历查找 sids 数组的第一个值
                   function findSid(obj) {
                     for (const k in obj) {
-                      if (k === 'sid') return obj[k];
-                      if (typeof obj[k] === 'object') {
+                      if (k === 'sids' && Array.isArray(obj[k]) && obj[k].length > 0) {
+                        return obj[k][0];
+                      }
+                      if (typeof obj[k] === 'object' && obj[k] !== null) {
                         const found = findSid(obj[k]);
-                        if (found) return found;
+                        if (found !== null && found !== undefined) return found;
                       }
                     }
                     return null;
