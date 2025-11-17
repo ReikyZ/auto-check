@@ -135,7 +135,6 @@
             });
           }
           
-          console.log('SSSSS requestBody:', requestBody);
           const requestData = {
             url: fullUrl,
             method: xhr._method,
@@ -202,14 +201,50 @@
           }
 
           if (fullUrl.includes('/events')) {
+            console.log('[Injected] 📄 /events 响应内容');
             try {
               const jsonData = JSON.parse(xhr.responseText);
-              console.log(JSON.stringify(jsonData, null, 2));
+              if (window.__autoCheckDebug) {
+                console.log('[Injected] /events 响应数据:', JSON.stringify(jsonData, null, 2));
+              }
 
-              // INSERT_YOUR_CODE
-              // 获取第一个 sid 的值
+              // 获取 sid 的值，优先从请求体中获取，如果请求体没有则从响应中查找
               let sid = null;
-              if (jsonData && typeof jsonData === 'object') {
+              
+              // 首先尝试从请求体中获取 sid（类似 /counters 的处理方式）
+              if (requestBody) {
+                try {
+                  let bodyObj = null;
+                  if (typeof requestBody === 'string') {
+                    bodyObj = JSON.parse(requestBody);
+                  } else if (typeof requestBody === 'object') {
+                    bodyObj = requestBody;
+                  }
+                  
+                  if (bodyObj) {
+                    // 检查请求体中是否有 sids 数组
+                    if ('sids' in bodyObj && Array.isArray(bodyObj.sids) && bodyObj.sids.length > 0) {
+                      sid = bodyObj.sids[0];
+                      if (window.__autoCheckDebug) {
+                        console.log('[Injected] 从 /events 请求体中获取到 sid:', sid);
+                      }
+                    } else if ('sid' in bodyObj && bodyObj.sid) {
+                      sid = bodyObj.sid;
+                      if (window.__autoCheckDebug) {
+                        console.log('[Injected] 从 /events 请求体中获取到 sid:', sid);
+                      }
+                    }
+                  }
+                } catch (e) {
+                  // 请求体解析失败，继续尝试从响应中获取
+                  if (window.__autoCheckDebug) {
+                    console.warn('[Injected] 解析 /events 请求体失败:', e);
+                  }
+                }
+              }
+              
+              // 如果请求体中没有找到 sid，则从响应中查找
+              if (!sid && jsonData && typeof jsonData === 'object') {
                 // 常见结构是 { data: { sid: "xxx" } } 或直接 { sid: "..." }
                 if ('sid' in jsonData) {
                   sid = jsonData.sid;
@@ -231,10 +266,13 @@
                   }
                   sid = findSid(jsonData);
                 }
+                
+                if (sid && window.__autoCheckDebug) {
+                  console.log('[Injected] 从 /events 响应中获取到 sid:', sid);
+                }
               }
 
-              // INSERT_YOUR_CODE
-              // 通过消息通知 content script 保存数据（因为 injected script 无法直接使用 chrome.runtime.getURL）
+              // 通过消息通知 content script 保存数据
               if (sid) {
                 sendToContentScript({
                   sid: sid,
@@ -242,12 +280,14 @@
                   data: xhr.responseText
                 }, 'SAVE_EVENTS_DATA');
                 if (window.__autoCheckDebug) {
-                  console.log(`[Injected] 已发送保存 events_${sid} 的请求到 content script`);
+                  console.log(`[Injected] ✅ 已发送保存 events_${sid} 的请求到 content script`);
                 }
+              } else {
+                console.warn('[Injected] ⚠️ 无法从 /events 请求或响应中获取 sid，跳过保存');
               }
-              // console.log(JSON.stringify(jsonData, null, 2));
             } catch (e) {
-              console.log(xhr.responseText);
+              console.error('[Injected] ❌ 解析 /events 响应失败:', e);
+              console.log('[Injected] /events 原始响应:', xhr.responseText);
             }
           }
           // 发送到 content script
@@ -357,6 +397,7 @@
       url.includes('counters') || 
       url.includes('counter') ||
       url.includes('metric') ||
+      url.includes('events') ||
       url.includes('stats')
     );
     
@@ -428,6 +469,122 @@
             status: response.status,
             size: responseText.length
           });
+          
+          // 处理 /counters 响应
+          if (url.includes('/counters')) {
+            try {
+              const jsonData = JSON.parse(responseText);
+              if (window.__autoCheckDebug) {
+                console.log('[Injected] 📄 /counters fetch 响应内容');
+              }
+              
+              // 获取 sid
+              let sid = null;
+              if (requestBody) {
+                try {
+                  let bodyObj = null;
+                  if (typeof requestBody === 'string') {
+                    bodyObj = JSON.parse(requestBody);
+                  } else if (typeof requestBody === 'object') {
+                    bodyObj = requestBody;
+                  }
+                  
+                  if (bodyObj && 'sids' in bodyObj && Array.isArray(bodyObj.sids) && bodyObj.sids.length > 0) {
+                    sid = bodyObj.sids[0];
+                  }
+                } catch (e) {
+                  // 忽略解析错误
+                }
+              }
+              
+              if (sid) {
+                sendToContentScript({
+                  sid: sid,
+                  url: url,
+                  data: responseText
+                }, 'SAVE_COUNTERS_DATA');
+                if (window.__autoCheckDebug) {
+                  console.log(`[Injected] ✅ 已发送保存 counters_${sid} 的请求到 content script (fetch)`);
+                }
+              }
+            } catch (e) {
+              console.warn('[Injected] 处理 /counters fetch 响应失败:', e);
+            }
+          }
+          
+          // 处理 /events 响应
+          if (url.includes('/events')) {
+            try {
+              const jsonData = JSON.parse(responseText);
+              if (window.__autoCheckDebug) {
+                console.log('[Injected] 📄 /events fetch 响应内容');
+              }
+              
+              // 获取 sid，优先从请求体中获取
+              let sid = null;
+              
+              // 首先尝试从请求体中获取 sid
+              if (requestBody) {
+                try {
+                  let bodyObj = null;
+                  if (typeof requestBody === 'string') {
+                    bodyObj = JSON.parse(requestBody);
+                  } else if (typeof requestBody === 'object') {
+                    bodyObj = requestBody;
+                  }
+                  
+                  if (bodyObj) {
+                    if ('sids' in bodyObj && Array.isArray(bodyObj.sids) && bodyObj.sids.length > 0) {
+                      sid = bodyObj.sids[0];
+                    } else if ('sid' in bodyObj && bodyObj.sid) {
+                      sid = bodyObj.sid;
+                    }
+                  }
+                } catch (e) {
+                  // 请求体解析失败，继续尝试从响应中获取
+                }
+              }
+              
+              // 如果请求体中没有找到 sid，则从响应中查找
+              if (!sid && jsonData && typeof jsonData === 'object') {
+                if ('sid' in jsonData) {
+                  sid = jsonData.sid;
+                } else if (jsonData.data && typeof jsonData.data === 'object' && 'sid' in jsonData.data) {
+                  sid = jsonData.data.sid;
+                } else {
+                  // 遍历查找 sids 数组的第一个值
+                  function findSid(obj) {
+                    for (const k in obj) {
+                      if (k === 'sids' && Array.isArray(obj[k]) && obj[k].length > 0) {
+                        return obj[k][0];
+                      }
+                      if (typeof obj[k] === 'object' && obj[k] !== null) {
+                        const found = findSid(obj[k]);
+                        if (found !== null && found !== undefined) return found;
+                      }
+                    }
+                    return null;
+                  }
+                  sid = findSid(jsonData);
+                }
+              }
+              
+              if (sid) {
+                sendToContentScript({
+                  sid: sid,
+                  url: url,
+                  data: responseText
+                }, 'SAVE_EVENTS_DATA');
+                if (window.__autoCheckDebug) {
+                  console.log(`[Injected] ✅ 已发送保存 events_${sid} 的请求到 content script (fetch)`);
+                }
+              } else {
+                console.warn('[Injected] ⚠️ 无法从 /events fetch 请求或响应中获取 sid，跳过保存');
+              }
+            } catch (e) {
+              console.error('[Injected] ❌ 处理 /events fetch 响应失败:', e);
+            }
+          }
           
           // 发送到 content script
           sendToContentScript(requestData);

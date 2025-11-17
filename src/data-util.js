@@ -29,9 +29,10 @@ export function saveData(type, uid, url, data = null) {
     }
 
     const key = generateStorageKey(type, uid);
-    const storageData = data
+    // 将数据转换为字符串存储
+    const storageData = data ? (typeof data === 'string' ? data : JSON.stringify(data)) : '';
 
-    sessionStorage.setItem(key, storageData.toString());
+    sessionStorage.setItem(key, storageData);
     
     if (window.__autoCheckDebug) {
       console.log(`✅ [DataUtil] 保存数据成功:`, {

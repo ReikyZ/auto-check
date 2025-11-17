@@ -179,6 +179,119 @@ export const getMuteStatusDisplayText = (muteStatusValues) => {
 };
 
 /**
+ * 获取 A AUDIO PROFILE 值
+ * @param {string} responseText - 响应文本
+ * @returns {Array|null} audio profile 值数组
+ */
+export const getAudioProfile = (responseText) => {
+  if (!responseText || typeof responseText !== 'string') {
+    console.warn('getAudioProfile: responseText 不是有效的字符串');
+    return null;
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(responseText);
+  } catch (e) {
+    console.warn('getAudioProfile: responseText 不是有效的 JSON');
+    return null;
+  }
+
+  const values = [];
+  
+  // 遍历数据结构查找 "A AUDIO PROFILE"
+  for (const item of Array.isArray(parsed) ? parsed : []) {
+    if (item && Array.isArray(item.data)) {
+      for (const counter of item.data) {
+        if (
+          counter &&
+          typeof counter.name === 'string' &&
+          counter.name.trim() === 'A AUDIO PROFILE' &&
+          Array.isArray(counter.data)
+        ) {
+          // 收集所有非null、非undefined的值（第二列）
+          for (let i = 0; i < counter.data.length; i++) {
+            const dataItem = counter.data[i];
+            const value = Array.isArray(dataItem) ? dataItem[1] : dataItem;
+            if (value !== null && value !== undefined) {
+              values.push(value);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (values.length === 0) {
+    console.warn('未找到 A AUDIO PROFILE 数据');
+    return null;
+  }
+  
+  return values;
+};
+
+/**
+ * AUDIO_PROFILE 枚举映射
+ */
+const AUDIO_PROFILE_MAP = {
+  '-1': 'DEFAULT',
+  0: 'DEFAULT',
+  1: 'SPEECH_STANDARD',
+  2: 'MUSIC_STANDARD',
+  3: 'MUSIC_STANDARD_STEREO',
+  4: 'MUSIC_HIGH_QUALITY',
+  5: 'MUSIC_HIGH_QUALITY_STEREO',
+  6: 'IOT',
+  7: 'NUM'
+};
+
+/**
+ * AUDIO_SCENARIO 枚举映射
+ */
+const AUDIO_SCENARIO_MAP = {
+  0: 'DEFAULT',
+  1: 'CHATROOM',
+  2: 'EDUCATION',
+  3: 'GAME_STREAMING',
+  5: 'CHATROOM',
+  7: 'CHORUS',
+  8: 'MEETING',
+  9: 'AI_SERVER',
+  10: 'AI_CLIENT',
+  11: 'NUM'
+};
+
+/**
+ * 获取 audio profile 显示文本
+ * @param {Array} audioProfileValues - audio profile 值数组
+ * @returns {string} audio profile 显示文本
+ */
+export const getAudioProfileDisplayText = (audioProfileValues) => {
+  if (!audioProfileValues || !Array.isArray(audioProfileValues) || audioProfileValues.length === 0) {
+    return '未知';
+  }
+
+  const firstValue = audioProfileValues[0];
+  
+  // 解析值：value = AUDIO_PROFILE * 16 + AUDIO_SCENARIO
+  const audioProfile = Math.floor(firstValue / 16);
+  const audioScenario = firstValue % 16;
+  
+  const profileName = AUDIO_PROFILE_MAP[audioProfile] || `未知(${audioProfile})`;
+  const scenarioName = AUDIO_SCENARIO_MAP[audioScenario] || `未知(${audioScenario})`;
+  
+  let displayText = `音频 profile 为${profileName}，场景为 ${scenarioName}`;
+  
+  // 检查数组中是否有不同的值
+  const hasVariation = audioProfileValues.some(value => value !== firstValue);
+  if (hasVariation) {
+    displayText += '，有变化';
+  }
+  
+  return displayText;
+};
+
+/**
  * 更新 base-info 区域的内容
  * @param {string} responseText - 响应文本
  */
@@ -222,6 +335,9 @@ export const updateBaseInfo = (responseText) => {
   
   // 提取 mute 状态信息（返回数组）
   const muteStatusValues = getSDKMuteStatus(responseText);
+
+  // 提取 audio profile 信息（返回数组）
+  const audioProfileValues = getAudioProfile(responseText);
   
   // 构建基本信息内容（使用 ES6 模板字符串）
   let baseInfoHTML = '<h4>基本信息</h4>';
@@ -240,6 +356,13 @@ export const updateBaseInfo = (responseText) => {
   } else {
     baseInfoHTML += '<div class="info-item">⚠️ 未找到 mute 状态信息</div>';
   }
+  
+  if (audioProfileValues !== null) {
+    const audioProfileText = getAudioProfileDisplayText(audioProfileValues);
+    baseInfoHTML += `<div class="info-item">🎵 ${audioProfileText}</div>`;
+  } else {
+    baseInfoHTML += '<div class="info-item">⚠️ 未找到 audio profile 信息</div>';
+  }
 
   // 更新内容
   baseInfoElement.innerHTML = baseInfoHTML;
@@ -248,7 +371,9 @@ export const updateBaseInfo = (responseText) => {
     roleValues, 
     roleText: getRoleDisplayText(roleValues),
     muteStatusValues,
-    muteText: getMuteStatusDisplayText(muteStatusValues)
+    muteText: getMuteStatusDisplayText(muteStatusValues),
+    audioProfileValues,
+    audioProfileText: getAudioProfileDisplayText(audioProfileValues)
   });
 };
 
@@ -258,6 +383,8 @@ export default {
   getRoleDisplayText,
   getSDKMuteStatus,
   getMuteStatusDisplayText,
+  getAudioProfile,
+  getAudioProfileDisplayText,
   updateBaseInfo
 };
 
@@ -267,6 +394,8 @@ if (typeof window !== 'undefined') {
   window.getRoleDisplayText = getRoleDisplayText;
   window.getSDKMuteStatus = getSDKMuteStatus;
   window.getMuteStatusDisplayText = getMuteStatusDisplayText;
+  window.getAudioProfile = getAudioProfile;
+  window.getAudioProfileDisplayText = getAudioProfileDisplayText;
   window.updateBaseInfo = updateBaseInfo;
 }
 
