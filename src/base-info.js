@@ -292,10 +292,79 @@ export const getAudioProfileDisplayText = (audioProfileValues) => {
 };
 
 /**
- * 更新 base-info 区域的内容
- * @param {string} responseText - 响应文本
+ * 检查用户权限
+ * @param {string|Array} eventsData - events 数据（JSON 字符串或已解析的数组）
+ * @returns {string|null} 权限状态文本，如果未找到则返回 null
  */
-export const updateBaseInfo = (responseText) => {
+export const checkPrivileges = (eventsData) => {
+  if (!eventsData) {
+    console.warn('checkPrivileges: eventsData 为空');
+    return null;
+  }
+
+  console.log('checkPrivileges: 接收到的 eventsData 类型:', typeof eventsData);
+  console.log('checkPrivileges: eventsData 是否为数组:', Array.isArray(eventsData));
+
+  let parsed;
+  
+  // 如果 eventsData 是字符串，尝试解析
+  if (typeof eventsData === 'string') {
+    try {
+      parsed = JSON.parse(eventsData);
+      console.log('checkPrivileges: 成功解析 JSON，数组长度:', Array.isArray(parsed) ? parsed.length : '不是数组');
+    } catch (e) {
+      console.warn('checkPrivileges: eventsData 不是有效的 JSON', e);
+      return null;
+    }
+  } else if (Array.isArray(eventsData)) {
+    parsed = eventsData;
+    console.log('checkPrivileges: eventsData 是数组，长度:', parsed.length);
+  } else {
+    console.warn('checkPrivileges: eventsData 格式不正确，类型:', typeof eventsData);
+    return null;
+  }
+
+  if (!Array.isArray(parsed)) {
+    console.warn('checkPrivileges: 解析后的数据不是数组');
+    return null;
+  }
+
+  // 遍历 events 数组，查找 name 为 "vos.userPrivileges" 的项
+  let foundCount = 0;
+  for (const event of parsed) {
+    if (event && event.details) {
+      const details = event.details;
+      if (details.name === 'vos.userPrivileges') {
+        foundCount++;
+        console.log('checkPrivileges: 找到 vos.userPrivileges 事件:', details);
+        if ('clientAudioExpireTs' in details) {
+          const clientAudioExpireTs = details.clientAudioExpireTs;
+          console.log('checkPrivileges: clientAudioExpireTs 值:', clientAudioExpireTs);
+          
+          // 如果 clientAudioExpireTs 为 0，则输出【无发音频权限】
+          // 否则输出【发流权限正常】
+          if (clientAudioExpireTs === 0) {
+            return '无发音频权限';
+          } else {
+            return '发流权限正常';
+          }
+        } else {
+          console.warn('checkPrivileges: 找到 vos.userPrivileges 但缺少 clientAudioExpireTs 字段');
+        }
+      }
+    }
+  }
+
+  console.warn(`checkPrivileges: 未找到 vos.userPrivileges 数据，共检查了 ${parsed.length} 个事件，找到 ${foundCount} 个匹配项`);
+  return null;
+};
+
+/**
+ * 更新 base-info 区域的内容
+ * @param {string} responseText - 响应文本（counters 数据）
+ * @param {string|Array} eventsData - events 数据（可选）
+ */
+export const updateBaseInfo = (responseText, eventsData = null) => {
   // 尝试查找 .base-info 元素
   let baseInfoElement = document.querySelector('.base-info');
   
@@ -324,7 +393,7 @@ export const updateBaseInfo = (responseText) => {
       console.warn('⚠️ 未找到 .combined-audio-analysis-container 容器，base-info 将在图表创建后更新');
       // 延迟一段时间后重试
       setTimeout(() => {
-        updateBaseInfo(responseText);
+        updateBaseInfo(responseText, eventsData);
       }, 500);
       return;
     }
@@ -338,6 +407,9 @@ export const updateBaseInfo = (responseText) => {
 
   // 提取 audio profile 信息（返回数组）
   const audioProfileValues = getAudioProfile(responseText);
+  
+  // 检查用户权限（从 events 数据中获取）
+  const privilegesText = eventsData ? checkPrivileges(eventsData) : null;
   
   // 构建基本信息内容（使用 ES6 模板字符串）
   let baseInfoHTML = '<h4>基本信息</h4>';
@@ -363,6 +435,13 @@ export const updateBaseInfo = (responseText) => {
   } else {
     baseInfoHTML += '<div class="info-item">⚠️ 未找到 audio profile 信息</div>';
   }
+  
+  if (privilegesText !== null) {
+    const privilegesIcon = privilegesText === '无发音频权限' ? '🚫' : '✅';
+    baseInfoHTML += `<div class="info-item">${privilegesIcon} ${privilegesText}</div>`;
+  } else {
+    baseInfoHTML += '<div class="info-item">⚠️ 未找到权限信息</div>';
+  }
 
   // 更新内容
   baseInfoElement.innerHTML = baseInfoHTML;
@@ -373,7 +452,8 @@ export const updateBaseInfo = (responseText) => {
     muteStatusValues,
     muteText: getMuteStatusDisplayText(muteStatusValues),
     audioProfileValues,
-    audioProfileText: getAudioProfileDisplayText(audioProfileValues)
+    audioProfileText: getAudioProfileDisplayText(audioProfileValues),
+    privilegesText
   });
 };
 
@@ -385,6 +465,7 @@ export default {
   getMuteStatusDisplayText,
   getAudioProfile,
   getAudioProfileDisplayText,
+  checkPrivileges,
   updateBaseInfo
 };
 
@@ -396,6 +477,7 @@ if (typeof window !== 'undefined') {
   window.getMuteStatusDisplayText = getMuteStatusDisplayText;
   window.getAudioProfile = getAudioProfile;
   window.getAudioProfileDisplayText = getAudioProfileDisplayText;
+  window.checkPrivileges = checkPrivileges;
   window.updateBaseInfo = updateBaseInfo;
 }
 

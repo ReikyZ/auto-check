@@ -392,7 +392,7 @@ window.calculateChangeFrequency = function(data) {
 })();
 
 // ES6 动态 import 辅助函数
-async function updateBaseInfoWithES6(responseText) {
+async function updateBaseInfoWithES6(responseText, eventsData = null) {
   try {
     // 使用 ES6 动态 import 导入模块
     const baseInfoModule = await import(chrome.runtime.getURL('src/base-info.js'));
@@ -403,13 +403,13 @@ async function updateBaseInfoWithES6(responseText) {
     
     if (responseText && typeof baseInfoModule.updateBaseInfo === 'function') {
       console.log('✅ 使用 ES6 方式调用 updateBaseInfo');
-      baseInfoModule.updateBaseInfo(responseText);
+      baseInfoModule.updateBaseInfo(responseText, eventsData);
     } else {
       console.warn('⚠️ ES6 模块中 updateBaseInfo 不可用');
       // 降级使用 window 方式
       if (typeof window.updateBaseInfo === 'function') {
         console.log('⚠️ 降级使用 window.updateBaseInfo');
-        window.updateBaseInfo(responseText);
+        window.updateBaseInfo(responseText, eventsData);
       }
     }
   } catch (error) {
@@ -417,7 +417,7 @@ async function updateBaseInfoWithES6(responseText) {
     // 降级使用 window 方式
     if (typeof window.updateBaseInfo === 'function') {
       console.log('⚠️ 降级使用 window.updateBaseInfo');
-      window.updateBaseInfo(responseText);
+      window.updateBaseInfo(responseText, eventsData);
     }
   }
 }
@@ -827,8 +827,9 @@ async function performAutoCheck(scopeRoot = document, scopeIndex = undefined) {
     
     // 拿到响应后再执行分析
     if (countersResponse) {
-      // 创建图表并更新基本信息（showAecDelayAnalysis 内部会更新基本信息）
-      await showAecDelayAnalysis(countersResponse);
+      // 创建图表并更新基本信息（showAudioMetricsAnalysis 内部会更新基本信息）
+      // 传递 events 数据以检查权限信息
+      await showAudioMetricsAnalysis(countersResponse, eventlistResponse);
     } else {
       showNotification('未找到响应数据', 'error');
     }
@@ -2059,12 +2060,11 @@ function findAecDelayData(countersData) {
 }
 
 // 显示AEC Delay分析弹窗
-async function showAecDelayAnalysis(response) {
-  // 加载Chart.js库
+async function showAudioMetricsAnalysis(countersResponse, eventsData = null) {
+  // 加载 Chart.js 库
   loadChartJs().then(async () => {
-    // 只获取真实数据，不生成模拟数据
-    showNotification('显示AEC Delay分析弹窗', 'info');
-    
+    showNotification('显示音频指标分析弹窗', 'info');
+
     // 动态导入 ES6 模块
     const [aecDelayModule, signalLevelModule, recordVolumeModule, errorCodeModule] = await Promise.all([
       import(chrome.runtime.getURL('src/metrics/aec-delay.js')),
@@ -2072,39 +2072,40 @@ async function showAecDelayAnalysis(response) {
       import(chrome.runtime.getURL('src/metrics/record-volume.js')),
       import(chrome.runtime.getURL('src/metrics/error-code.js'))
     ]);
-    
-    const aecDelayData = aecDelayModule.getAecDelayData(response);
+
+    // 获取各项分析数据
+    const aecDelayData = aecDelayModule.getAecDelayData(countersResponse);
     console.log('aecDelayData', aecDelayData);
 
-    const signalLevelData = signalLevelModule.getAudioSignalLevelNearinData(response);
-    const recordSignalVolumeData = recordVolumeModule.getARecordSignalVolumeData(response);
+    const signalLevelData = signalLevelModule.getAudioSignalLevelNearinData(countersResponse);
+    const recordVolumeData = recordVolumeModule.getARecordSignalVolumeData(countersResponse);
+
     // 获取 error code 数据
     let errorCodeData;
-    const onErrorCodeDataUpdate = (updatedData) => {
+    const handleErrorCodeDataUpdate = (updatedData) => {
       errorCodeData = updatedData;
       // 重新渲染 error code 表格
       if (document.getElementById('errorCodeDataTable')) {
         createErrorCodeTable(errorCodeData, 'errorCodeDataTable');
       }
     };
-
-    errorCodeData = errorCodeModule.getChatEngineErrorData(response, onErrorCodeDataUpdate);
+    errorCodeData = errorCodeModule.getChatEngineErrorData(countersResponse, handleErrorCodeDataUpdate);
 
     console.log('errorCodeData', errorCodeData);
-    
+
     // 如果没有数据，显示提示信息
-    if (!aecDelayData && !signalLevelData && !recordSignalVolumeData && !errorCodeData) {
+    if (!aecDelayData && !signalLevelData && !recordVolumeData && !errorCodeData) {
       showNotification('未找到音频分析数据', 'warning');
     }
-    
+
     if (window.Chart) {
-      createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData);
+      createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordVolumeData, errorCodeData);
     } else {
-      createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignalVolumeData, errorCodeData, response);
+      createCombinedFallbackChart(aecDelayData, signalLevelData, recordVolumeData, errorCodeData, countersResponse);
     }
-    
-    // 图表创建后立即更新基本信息
-    await updateBaseInfoWithES6(response);
+
+    // 图表创建后立即更新基本信息，传递 events 数据
+    await updateBaseInfoWithES6(countersResponse, eventsData);
   }).catch(error => {
     console.error('加载Chart.js失败:', error);
     showNotification('加载图表库失败', 'error');
