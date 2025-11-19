@@ -92,6 +92,25 @@ const decodeExponential = (index) => {
   return EXPONENTIAL_VALUES[0]; // 默认值
 };
 
+const formatAEC = (value) => {
+  if ( value === null || value === undefined ) {
+      return "暂无指标数据";
+  }
+  let text = "<br>";
+  const enabled = value >> 31 & 0x1;
+  if (enabled === 0) {
+      return "enabled: off";
+  }
+  const valueMap = {
+      "enabled": [ "off", "on" ][ enabled ], "Search method": [ "kCorrelation", "kMatchFilter", "kFilterCoeff" ][ (value >> 28) & 0x7 ], "filter type": [ "MDF", "SAF" ][ (value >> 26) & 0x3 ], "filter length ms": (value >> 14) & 0xfff, "nlp working mode": [ "kTrad", "kDeep", "kFuse" ][ (value >> 11) & 0x7 ], "nlp aggressiveness": (value >> 8) & 0x7, "nlp size": Math.pow(2, ((value >> 4) & 0xf)), "hop size": Math.pow(2, (value & 0xf)),
+  };
+
+  Object.keys( valueMap ).map( ( key ) => {
+      text += `${key}: ${valueMap[ key ]}<br>`;
+  } );
+  return text;
+};
+
 /**
  * 解析 aec_configuration 整数，返回配置参数的 map
  * @param {number} aec_configuration - AEC配置整数值（可以是负数，需要转换为无符号32位整数处理）
@@ -161,19 +180,25 @@ export const formatAecConfiguration = (aec_configuration) => {
     `nlp_hop_size: ${config.nlp_hop_size}`;
 };
 
+// 导出 formatAEC 函数
+export { formatAEC };
+
 // 默认导出
 export default {
   parseAecConfiguration,
-  formatAecConfiguration
+  formatAecConfiguration,
+  formatAEC
 };
 
 // 同时暴露到全局作用域以保持兼容性
 if (typeof window !== 'undefined') {
   window.parseAecConfiguration = parseAecConfiguration;
   window.formatAecConfiguration = formatAecConfiguration;
+  window.formatAEC = formatAEC;
   window.AecConfig = {
     parseAecConfiguration,
-    formatAecConfiguration
+    formatAecConfiguration,
+    formatAEC
   };
 }
 

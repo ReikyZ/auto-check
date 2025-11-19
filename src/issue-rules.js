@@ -9,6 +9,12 @@
 const ISSUE_RULES = {
   // 问题类型定义
   issueTypes: {
+    isErrorCode: {
+      name: '错误码',
+      description: '只显示错误码信息',
+      color: '#dc3545',
+      icon: '🚨'
+    },
     isNoSound: {
       name: '无声',
       description: '音频信号缺失或静音',
@@ -44,6 +50,7 @@ const ISSUE_RULES = {
   // 指标与问题类型的关联规则
   metricIssueRules: {
     'Audio AEC Delay': {
+      isErrorCode: 0,
       isNoSound: 0,
       isLowLevel: 0,
       isEcho: 1,
@@ -51,6 +58,7 @@ const ISSUE_RULES = {
       isBlack: 0
     },
     'Audio Signal Level Nearin': {
+      isErrorCode: 0,
       isNoSound: 1,
       isLowLevel: 1,
       isEcho: 0,
@@ -58,6 +66,7 @@ const ISSUE_RULES = {
       isBlack: 0
     },
     'A RECORD SIGNAL VOLUME': {
+      isErrorCode: 0,
       isNoSound: 1,
       isLowLevel: 1,
       isEcho: 0,
@@ -65,13 +74,15 @@ const ISSUE_RULES = {
       isBlack: 0
     },
     'Chat Engine Error Code': {
-      isNoSound: 1,
-      isLowLevel: 1,
-      isEcho: 1,
-      isAudioStutter: 1,
-      isBlack: 1
+      isErrorCode: 1,
+      isNoSound: 0,
+      isLowLevel: 0,
+      isEcho: 0,
+      isAudioStutter: 0,
+      isBlack: 0
     },
     'Audio Playback Frequency': {
+      isErrorCode: 0,
       isNoSound: 0,
       isLowLevel: 0,
       isEcho: 0,
@@ -79,6 +90,7 @@ const ISSUE_RULES = {
       isBlack: 0
     },
     'AUDIO DOWNLINK PULL 10MS DATA TIME': {
+      isErrorCode: 0,
       isNoSound: 0,
       isLowLevel: 0,
       isEcho: 0,
@@ -95,6 +107,7 @@ const ISSUE_RULES = {
  */
 function getMetricIssueTypes(metricName) {
   return ISSUE_RULES.metricIssueRules[metricName] || {
+    isErrorCode: 0,
     isNoSound: 0,
     isLowLevel: 0,
     isEcho: 0,
@@ -139,6 +152,48 @@ function getMetricsForIssueType(issueType) {
 }
 
 /**
+ * 根据选中的问题类型列表，获取应该显示的所有指标
+ * @param {Object} selectedIssues - 选中的问题类型对象，格式：{ isErrorCode: true, isNoSound: false, ... }
+ * @returns {Array} 应该显示的指标名称列表
+ */
+function getMetricsForSelectedIssues(selectedIssues) {
+  const metricsSet = new Set();
+  
+  // 遍历所有选中的问题类型
+  Object.keys(selectedIssues).forEach(issueType => {
+    if (selectedIssues[issueType]) {
+      // 获取该问题类型相关的所有指标
+      const metrics = getMetricsForIssueType(issueType);
+      metrics.forEach(metric => metricsSet.add(metric));
+    }
+  });
+  
+  return Array.from(metricsSet);
+}
+
+/**
+ * 检查指标是否应该根据选中的问题类型显示
+ * @param {string} metricName - 指标名称
+ * @param {Object} selectedIssues - 选中的问题类型对象
+ * @returns {boolean} 是否应该显示
+ */
+function shouldShowMetric(metricName, selectedIssues) {
+  // 如果没有选中任何问题类型，不显示
+  const hasActiveIssues = Object.values(selectedIssues).some(checked => checked);
+  if (!hasActiveIssues) {
+    return false;
+  }
+  
+  // 检查指标是否与任何选中的问题类型相关
+  return Object.keys(selectedIssues).some(issueType => {
+    if (selectedIssues[issueType]) {
+      return isMetricRelatedToIssue(metricName, issueType);
+    }
+    return false;
+  });
+}
+
+/**
  * 获取所有问题类型
  * @returns {Array} 问题类型列表
  */
@@ -154,18 +209,35 @@ function generateIssueRulesTable() {
   const metrics = Object.keys(ISSUE_RULES.metricIssueRules);
   const issueTypes = getAllIssueTypes();
   
+  // 获取问题类型的显示名称
+  const issueTypeNames = issueTypes.map(issueType => {
+    const config = getIssueTypeConfig(issueType);
+    return config ? config.name : issueType;
+  });
+  
   let table = '问题类型规则表:\n';
-  table += '指标名称'.padEnd(25) + '| 无声 | 音量小 | 回声 | 音频卡顿 | 黑屏\n';
-  table += '-'.repeat(25) + '|------|--------|------|----------|------\n';
+  // 表头：指标名称 + 各问题类型名称
+  table += '指标名称'.padEnd(30);
+  issueTypeNames.forEach(name => {
+    table += `| ${name.padEnd(6)}`;
+  });
+  table += '\n';
+  
+  // 分隔线
+  table += '-'.repeat(30);
+  issueTypeNames.forEach(() => {
+    table += '|--------';
+  });
+  table += '\n';
   
   metrics.forEach(metricName => {
     const rules = ISSUE_RULES.metricIssueRules[metricName];
-    const shortName = metricName.length > 20 ? metricName.substring(0, 17) + '...' : metricName;
-    table += shortName.padEnd(25) + '|';
+    const shortName = metricName.length > 28 ? metricName.substring(0, 25) + '...' : metricName;
+    table += shortName.padEnd(30);
     
     issueTypes.forEach(issueType => {
       const value = rules[issueType] || 0;
-      table += `  ${value}   |`;
+      table += `|   ${value}    `;
     });
     table += '\n';
   });
@@ -216,13 +288,12 @@ function addMetricRule(metricName, rules) {
  */
 function updateMetricRule(metricName, issueType, value) {
   if (!ISSUE_RULES.metricIssueRules[metricName]) {
-    ISSUE_RULES.metricIssueRules[metricName] = {
-      isNoSound: 0,
-      isLowLevel: 0,
-      isEcho: 0,
-      isAudioStutter: 0,
-      isBlack: 0
-    };
+    // 初始化时包含所有问题类型
+    const allIssueTypes = getAllIssueTypes();
+    ISSUE_RULES.metricIssueRules[metricName] = {};
+    allIssueTypes.forEach(type => {
+      ISSUE_RULES.metricIssueRules[metricName][type] = 0;
+    });
   }
   ISSUE_RULES.metricIssueRules[metricName][issueType] = value;
   console.log(`已更新指标规则: ${metricName} - ${issueType} = ${value}`);
@@ -306,6 +377,8 @@ if (typeof module !== 'undefined' && module.exports) {
     getIssueTypeConfig,
     isMetricRelatedToIssue,
     getMetricsForIssueType,
+    getMetricsForSelectedIssues,
+    shouldShowMetric,
     getAllIssueTypes,
     generateIssueRulesTable,
     extractMetricNameFromTitle,
@@ -325,6 +398,8 @@ if (typeof window !== 'undefined') {
   window.getIssueTypeConfig = getIssueTypeConfig;
   window.isMetricRelatedToIssue = isMetricRelatedToIssue;
   window.getMetricsForIssueType = getMetricsForIssueType;
+  window.getMetricsForSelectedIssues = getMetricsForSelectedIssues;
+  window.shouldShowMetric = shouldShowMetric;
   window.getAllIssueTypes = getAllIssueTypes;
   window.generateIssueRulesTable = generateIssueRulesTable;
   window.extractMetricNameFromTitle = extractMetricNameFromTitle;

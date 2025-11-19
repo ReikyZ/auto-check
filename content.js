@@ -220,12 +220,13 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
 }
 
 // 全局函数定义 - 确保在任何其他代码之前定义
-window.updateIssueStatus = function(issueType, isChecked) {
+window.updateIssueStatus = async function(issueType, isChecked) {
   console.log('updateIssueStatus called:', issueType, isChecked);
 
   // 初始化全局状态对象
   if (!window.audioAnalysisIssues) {
     window.audioAnalysisIssues = {
+      isErrorCode: false,
       isNoSound: false,
       isLowLevel: false,
       isEcho: false,
@@ -239,6 +240,11 @@ window.updateIssueStatus = function(issueType, isChecked) {
 
   // 显示调试信息
   console.log('Updated issue status:', window.audioAnalysisIssues);
+
+  // 如果是回声复选框，显示或隐藏 AEC Configuration
+  if (issueType === 'isEcho') {
+    await updateAecConfigurationDisplay(isChecked);
+  }
 
   // 尝试更新图表显示（安全调用）
   try {
@@ -261,9 +267,159 @@ window.updateIssueStatus = function(issueType, isChecked) {
   }
 };
 
+// 更新 AEC Configuration 显示
+async function updateAecConfigurationDisplay(show) {
+  const chartContainer = document.querySelector('.combined-audio-analysis-container');
+  if (!chartContainer) {
+    console.warn('未找到图表容器');
+    return;
+  }
+
+  // 查找或创建 AEC Configuration 显示区域
+  let aecConfigContainer = chartContainer.querySelector('.aec-config-info');
+  
+  if (show) {
+    // 需要显示 AEC Configuration
+    if (!aecConfigContainer) {
+      // 创建显示区域
+      aecConfigContainer = document.createElement('div');
+      aecConfigContainer.className = 'aec-config-info';
+      aecConfigContainer.style.cssText = `
+        margin: 15px 0;
+        padding: 15px;
+        background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+        border-radius: 8px;
+        color: white;
+      `;
+      
+      // 插入到 base-info 之后
+      const baseInfo = chartContainer.querySelector('.base-info');
+      if (baseInfo && baseInfo.nextSibling) {
+        baseInfo.parentNode.insertBefore(aecConfigContainer, baseInfo.nextSibling);
+      } else if (baseInfo) {
+        baseInfo.parentNode.appendChild(aecConfigContainer);
+      } else {
+        const chartContent = chartContainer.querySelector('.chart-content');
+        if (chartContent) {
+          chartContent.insertBefore(aecConfigContainer, chartContent.firstChild);
+        }
+      }
+    }
+
+    // 获取 counter response 数据
+    let responseText = null;
+    
+    // 尝试从 window.countersInterceptedRequests 获取
+    if (window.countersInterceptedRequests && window.countersInterceptedRequests.size > 0) {
+      for (const [url, data] of window.countersInterceptedRequests) {
+        if (url && url.includes('/counters') && data && data.responseText) {
+          responseText = data.responseText;
+          break;
+        }
+      }
+    }
+
+    // 如果没找到，尝试从 dataUtil 获取
+    if (!responseText) {
+      try {
+        const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
+        // 尝试获取最新的 counters 数据
+        // 这里需要根据实际情况调整获取逻辑
+      } catch (e) {
+        console.warn('无法导入 dataUtil:', e);
+      }
+    }
+
+    if (responseText) {
+      try {
+        // 动态导入 aec-config 模块
+        const aecConfigModule = await import(chrome.runtime.getURL('src/aec-config.js'));
+        
+        // 获取 AEC Configuration 值
+        const aecConfigValues = getAecConfiguration(responseText);
+        
+        if (aecConfigValues && aecConfigValues.length > 0) {
+          const firstValue = aecConfigValues[0];
+          const formattedText = aecConfigModule.formatAEC(firstValue);
+          
+          // 检查是否有变化
+          const hasVariation = aecConfigValues.some(value => value !== firstValue);
+          
+          let displayHTML = '<h4 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600;">🔧 AEC Configuration</h4>';
+          displayHTML += formattedText.replace(/^<br>/, '');
+          
+          if (hasVariation) {
+            displayHTML += '<br>有变化';
+          }
+          
+          aecConfigContainer.innerHTML = displayHTML;
+        } else {
+          aecConfigContainer.innerHTML = '<h4 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600;">🔧 AEC Configuration</h4><div>未找到 AEC Configuration 数据</div>';
+        }
+      } catch (e) {
+        console.error('显示 AEC Configuration 时出错:', e);
+        aecConfigContainer.innerHTML = '<h4 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600;">🔧 AEC Configuration</h4><div>加载 AEC Configuration 失败</div>';
+      }
+    } else {
+      aecConfigContainer.innerHTML = '<h4 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600;">🔧 AEC Configuration</h4><div>未找到 counter 数据</div>';
+    }
+  } else {
+    // 隐藏 AEC Configuration
+    if (aecConfigContainer) {
+      aecConfigContainer.remove();
+    }
+  }
+}
+
+// 获取 AEC Configuration 值的辅助函数（从 base-info.js 复制）
+function getAecConfiguration(responseText) {
+  if (!responseText || typeof responseText !== 'string') {
+    return null;
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(responseText);
+  } catch (e) {
+    return null;
+  }
+
+  const values = [];
+  
+  // 遍历数据结构查找 "Aec Configuration"
+  for (const item of Array.isArray(parsed) ? parsed : []) {
+    if (item && Array.isArray(item.data)) {
+      for (const counter of item.data) {
+        if (
+          counter &&
+          typeof counter.name === 'string' &&
+          counter.name.trim() === 'Aec Configuration' &&
+          Array.isArray(counter.data)
+        ) {
+          // 收集所有非null、非undefined的值（第二列）
+          for (let i = 0; i < counter.data.length; i++) {
+            const dataItem = counter.data[i];
+            const value = Array.isArray(dataItem) ? dataItem[1] : dataItem;
+            if (value !== null && value !== undefined) {
+              values.push(value);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (values.length === 0) {
+    return null;
+  }
+  
+  return values;
+}
+
 // 获取问题显示名称
 function getIssueDisplayName(issueType) {
   const names = {
+    'isErrorCode': '错误码',
     'isNoSound': '无声',
     'isLowLevel': '音量小',
     'isEcho': '回声',
@@ -606,6 +762,7 @@ function loadInlineIssueRules() {
   if (typeof window.ISSUE_RULES === 'undefined') {
   window.ISSUE_RULES = {
     issueTypes: {
+      isErrorCode: { name: '错误码', color: '#dc3545', icon: '🚨' },
       isNoSound: { name: '无声', color: '#ff6b6b', icon: '🔇' },
       isLowLevel: { name: '音量小', color: '#ffa726', icon: '🔉' },
       isEcho: { name: '回声', color: '#f44336', icon: '🔊' },
@@ -613,12 +770,12 @@ function loadInlineIssueRules() {
       isBlack: { name: '黑屏', color: '#000000', icon: '🖤' }
     },
     metricIssueRules: {
-      'Audio AEC Delay': { isNoSound: 0, isLowLevel: 0, isEcho: 1, isAudioStutter: 0, isBlack: 0 },
-      'Audio Signal Level Nearin': { isNoSound: 1, isLowLevel: 1, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
-      'A RECORD SIGNAL VOLUME': { isNoSound: 1, isLowLevel: 1, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
-      'Chat Engine Error Code': { isNoSound: 1, isLowLevel: 1, isEcho: 1, isAudioStutter: 1, isBlack: 1 },
-      'Audio Playback Frequency': { isNoSound: 0, isLowLevel: 0, isEcho: 0, isAudioStutter: 1, isBlack: 0 },
-      'AUDIO DOWNLINK PULL 10MS DATA TIME': { isNoSound: 0, isLowLevel: 0, isEcho: 0, isAudioStutter: 1, isBlack: 0 }
+      'Audio AEC Delay': { isErrorCode: 0, isNoSound: 0, isLowLevel: 0, isEcho: 1, isAudioStutter: 0, isBlack: 0 },
+      'Audio Signal Level Nearin': { isErrorCode: 0, isNoSound: 1, isLowLevel: 1, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
+      'A RECORD SIGNAL VOLUME': { isErrorCode: 0, isNoSound: 1, isLowLevel: 1, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
+      'Chat Engine Error Code': { isErrorCode: 1, isNoSound: 0, isLowLevel: 0, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
+      'Audio Playback Frequency': { isErrorCode: 0, isNoSound: 0, isLowLevel: 0, isEcho: 0, isAudioStutter: 1, isBlack: 0 },
+      'AUDIO DOWNLINK PULL 10MS DATA TIME': { isErrorCode: 0, isNoSound: 0, isLowLevel: 0, isEcho: 0, isAudioStutter: 1, isBlack: 0 }
     }
   };
   }
@@ -626,7 +783,7 @@ function loadInlineIssueRules() {
   // 内联函数定义（仅当外部函数不存在时才定义）
   if (typeof window.getMetricIssueTypes !== 'function') {
     window.getMetricIssueTypes = function(metricName) {
-      return window.ISSUE_RULES.metricIssueRules[metricName] || { isNoSound: 0, isLowLevel: 0, isEcho: 0, isAudioStutter: 0, isBlack: 0 };
+      return window.ISSUE_RULES.metricIssueRules[metricName] || { isErrorCode: 0, isNoSound: 0, isLowLevel: 0, isEcho: 0, isAudioStutter: 0, isBlack: 0 };
     };
   }
 
@@ -2241,6 +2398,10 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
         <div class="issue-checkboxes">
           <div class="checkbox-group">
             <label class="checkbox-item">
+              <input type="checkbox" id="isErrorCode" data-issue-type="isErrorCode">
+              <span class="checkbox-label">错误码</span>
+            </label>
+            <label class="checkbox-item">
               <input type="checkbox" id="isNoSound" data-issue-type="isNoSound">
               <span class="checkbox-label">无声</span>
             </label>
@@ -3484,6 +3645,10 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
       <div class="issue-checkboxes">
         <div class="checkbox-group">
           <label class="checkbox-item">
+            <input type="checkbox" id="isErrorCode" data-issue-type="isErrorCode">
+            <span class="checkbox-label">错误码</span>
+          </label>
+          <label class="checkbox-item">
             <input type="checkbox" id="isNoSound" data-issue-type="isNoSound">
             <span class="checkbox-label">无声</span>
           </label>
@@ -4667,11 +4832,9 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
       let highlightBackground = 'white';
       let shouldShow = false; // 默认隐藏所有指标
       
-      // 如果有问题被勾选，只显示相关指标
+      // 如果有问题被勾选，根据规则表判断是否显示该指标
       if (hasActiveIssues) {
-        shouldShow = false; // 初始设为 false，只有匹配的问题类型才设为 true
-        
-        // 检查当前指标是否与任何勾选的问题类型相关
+        // 检查当前指标是否与任何勾选的问题类型相关（完全依赖规则表）
         Object.keys(issues).forEach(issueType => {
           if (issues[issueType]) {
             // 确保规则表函数可用
@@ -4692,8 +4855,11 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
                   if (isRelated) {
                     shouldShow = true;
                     shouldHighlight = true;
-                    highlightColor = issueConfig.color;
-                    highlightBackground = issueConfig.color + '15'; // 添加透明度
+                    // 使用第一个匹配的问题类型的颜色（如果有多个匹配，使用第一个匹配的颜色）
+                    if (highlightColor === '#667eea') {
+                      highlightColor = issueConfig.color;
+                      highlightBackground = issueConfig.color + '15'; // 添加透明度
+                    }
                   }
                 }
               } catch (error) {

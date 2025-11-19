@@ -437,8 +437,11 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
   }
   
   if (privilegesText !== null) {
-    const privilegesIcon = privilegesText === '无发音频权限' ? '🚫' : '✅';
-    baseInfoHTML += `<div class="info-item">${privilegesIcon} ${privilegesText}</div>`;
+    if (privilegesText !== '发流权限正常'){
+      // 黑色高亮并加粗
+      const privilegesIcon = privilegesText === '无发音频权限' ? '🚫' : '✅';
+      baseInfoHTML += `<div class="info-item"><span style="color:#000000;font-weight:bold;">${privilegesIcon} ${privilegesText}</span></div>`;
+    }
   } else {
     baseInfoHTML += '<div class="info-item">⚠️ 未找到权限信息</div>';
   }
