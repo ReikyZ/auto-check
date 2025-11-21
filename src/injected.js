@@ -161,27 +161,50 @@
             try {
               const jsonData = JSON.parse(xhr.responseText);
 
-              // INSERT_YOUR_CODE
-              // 获取第一个 sid 的值
+             
               let sid = null;
               // INSERT_YOUR_CODE
-              if (requestBody && typeof requestBody === 'object') {
-                // requestBody 直接就是对象
-                if ('sids' in requestBody && Array.isArray(requestBody.sids) && requestBody.sids.length > 0) {
-                  sid = requestBody.sids[0];
-                }
-              } else if (requestBody && typeof requestBody === 'string') {
-                // 可能是字符串形式的 JSON
+              // INSERT_YOUR_CODE
+              // 遍历 dataUtil 中 sids 的值，并打印
+              (async () => {
                 try {
-                  const bodyObj = JSON.parse(requestBody);
-                  if ('sids' in bodyObj && Array.isArray(bodyObj.sids) && bodyObj.sids.length > 0) {
-                    sid = bodyObj.sids[0];
+                  // 动态加载 data-util 模块
+                  const dataUtil = window.dataUtil 
+                    ? window.dataUtil
+                    : await import(chrome.runtime.getURL('src/data-util.js'));
+                  if (dataUtil && typeof dataUtil.getSids === 'function') {
+                    const sidsArray = dataUtil.getSids();
+                    if (Array.isArray(sidsArray) && sidsArray.length > 0) {
+                      console.log('[Injected] 当前已保存的 sids:');
+                      sidsArray.forEach((sidValue, idx) => {
+                        console.log(`  [${idx}]:`, sidValue);
+                      // INSERT_YOUR_CODE
+                      // 如果 sidValue 在 responseText 中以 key:value 形态存在
+                      if (
+                        typeof xhr.responseText === 'string' &&
+                        sidValue &&
+                        (
+                          xhr.responseText.includes(`"sid":"${sidValue}"`) ||
+                          xhr.responseText.includes(`"sid": "${sidValue}"`) ||
+                          xhr.responseText.includes(`'sid':'${sidValue}'`) ||
+                          xhr.responseText.includes(`'sid': '${sidValue}'`)
+                        )
+                      ) {
+                        console.log(`[Injected] ✅ 当前 responseText 中包含 sid=${sidValue}`);
+                        sid = sidValue;
+                      }
+                      });
+                    } else {
+                      console.log('[Injected] dataUtil sids 为空');
+                    }
+                  } else {
+                    console.warn('[Injected] 未能获取 dataUtil.getSids 方法');
                   }
-                } catch (err) {
-                  // 不是有效的 JSON，忽略
+                } catch (error) {
+                  console.error('[Injected] 遍历 dataUtil sids 失败:', error);
                 }
-              }
-
+              })();
+           
               // INSERT_YOUR_CODE
               // 通过消息通知 content script 保存数据（因为 injected script 无法直接使用 chrome.runtime.getURL）
               if (sid) {
@@ -191,7 +214,7 @@
                   data: xhr.responseText
                 }, 'SAVE_COUNTERS_DATA');
                 if (window.__autoCheckDebug) {
-                  console.log(`[Injected] 已发送保存 counters_${sid} 的请求到 content script`);
+                  console.log(`[Injected] 已发送保存 sid:${sid} counters_${sid} 的请求到 content script`);
                 }
               }
               // console.log(JSON.stringify(jsonData, null, 2));
@@ -504,7 +527,7 @@
                   data: responseText
                 }, 'SAVE_COUNTERS_DATA');
                 if (window.__autoCheckDebug) {
-                  console.log(`[Injected] ✅ 已发送保存 counters_${sid} 的请求到 content script (fetch)`);
+                  console.log(`[Injected] ✅ 已发送保存 sid counters_${sid} 的请求到 content script (fetch)`);
                 }
               }
             } catch (e) {

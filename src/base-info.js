@@ -443,7 +443,7 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
       baseInfoHTML += `<div class="info-item"><span style="color:#000000;font-weight:bold;">${privilegesIcon} ${privilegesText}</span></div>`;
     }
   } else {
-    baseInfoHTML += '<div class="info-item">⚠️ 未找到权限信息</div>';
+    // baseInfoHTML += '<div class="info-item">⚠️ 未找到权限信息</div>';
   }
 
   // 更新内容

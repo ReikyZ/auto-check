@@ -5380,6 +5380,46 @@ function findAndPrintSidsValues() {
           spans.forEach((span, spanIndex) => {
             const spanValue = span.textContent || span.innerText || '';
             console.log(`  按钮[${buttonIndex}] -> counter-view -> sids[${sidsIndex}] -> span[${spanIndex}]: "${spanValue}"`);
+          // INSERT_YOUR_CODE
+          // 使用 dataUtil 保存 span[1] trim 的值，避免重复保存
+          if (spanIndex === 1) {
+            const span1Value = spanValue.trim();
+            if (!window._savedSpan1Values) {
+              window._savedSpan1Values = new Set();
+            }
+            if (!window._savedSpan1Values.has(span1Value)) {
+              window._savedSpan1Values.add(span1Value);
+              // 异步加载 dataUtil 模块并保存
+              (async () => {
+                try {
+                  const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
+                  if (dataUtil && typeof dataUtil.saveSid === 'function') {
+                    dataUtil.saveSid(span1Value);
+                    console.log(`[content.js] 已保存 span[1] 的值: "${span1Value}"`);
+                  } else {
+                    // 如果模块导出中没有 saveSid，尝试使用 window.dataUtil
+                    if (window.dataUtil && typeof window.dataUtil.saveSid === 'function') {
+                      window.dataUtil.saveSid(span1Value);
+                      console.log(`[content.js] 已保存 span[1] 的值: "${span1Value}"`);
+                    } else {
+                      console.warn('[content.js] dataUtil.saveSid 方法不可用，无法保存:', span1Value);
+                    }
+                  }
+                } catch (error) {
+                  console.error('[content.js] 加载 dataUtil 模块失败:', error);
+                  // 降级方案：尝试使用 window.dataUtil
+                  if (window.dataUtil && typeof window.dataUtil.saveSid === 'function') {
+                    window.dataUtil.saveSid(span1Value);
+                    console.log(`[content.js] 已保存 span[1] 的值（使用 window.dataUtil）: "${span1Value}"`);
+                  } else {
+                    console.warn('[content.js] dataUtil.saveSid 方法不可用，无法保存:', span1Value);
+                  }
+                }
+              })();
+            } else {
+              console.log(`[content.js] span[1] 的值 "${span1Value}" 已保存过，跳过`);
+            }
+          }
           });
         }
       });

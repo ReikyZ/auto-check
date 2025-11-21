@@ -184,6 +184,180 @@ export function getAllData(type = null) {
   }
 }
 
+/**
+ * 保存 span[1] 的值到 sessionStorage
+ * @param {string} identifier - 标识符（如 uid 或 sid）
+ * @param {string} spanValue - span[1] 的值
+ * @returns {boolean} 是否保存成功
+ */
+export function saveSpanValue(identifier, spanValue) {
+  try {
+    if (!identifier || spanValue === null || spanValue === undefined) {
+      console.warn('saveSpanValue: 缺少必要参数', { identifier, spanValue });
+      return false;
+    }
+
+    const key = generateStorageKey('span', identifier);
+    const storageData = typeof spanValue === 'string' ? spanValue : String(spanValue);
+
+    sessionStorage.setItem(key, storageData);
+    
+    if (window.__autoCheckDebug) {
+      console.log(`✅ [DataUtil] 保存 span[1] 值成功:`, {
+        identifier,
+        spanValue: storageData,
+        key
+      });
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('❌ [DataUtil] 保存 span[1] 值失败:', error);
+    return false;
+  }
+}
+
+/**
+ * 获取保存的 span[1] 的值
+ * @param {string} identifier - 标识符（如 uid 或 sid）
+ * @returns {string|null} 保存的 span[1] 值，如果不存在则返回 null
+ */
+export function getSpanValue(identifier) {
+  try {
+    if (!identifier) {
+      console.warn('getSpanValue: 缺少必要参数', { identifier });
+      return null;
+    }
+
+    const key = generateStorageKey('span', identifier);
+    const stored = sessionStorage.getItem(key);
+    
+    if (!stored) {
+      if (window.__autoCheckDebug) {
+        console.log(`ℹ️ [DataUtil] 未找到 span[1] 值:`, { identifier });
+      }
+      return null;
+    }
+
+    const spanValue = stored.toString();
+    
+    if (window.__autoCheckDebug) {
+      console.log(`✅ [DataUtil] 获取 span[1] 值成功:`, {
+        identifier,
+        spanValue
+      });
+    }
+    
+    return spanValue;
+  } catch (error) {
+    console.error('❌ [DataUtil] 获取 span[1] 值失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 保存 sid 值（span[1] 的值）到数组中
+ * @param {string} sidValue - sid 值（span[1] 的值）
+ * @returns {boolean} 是否保存成功
+ */
+export function saveSid(sidValue) {
+  try {
+    if (!sidValue || sidValue === null || sidValue === undefined) {
+      console.warn('saveSid: 缺少必要参数', { sidValue });
+      return false;
+    }
+
+    const sidStr = typeof sidValue === 'string' ? sidValue.trim() : String(sidValue).trim();
+    if (!sidStr) {
+      console.warn('saveSid: sid 值为空', { sidValue });
+      return false;
+    }
+
+    // 使用固定的 key "spans"
+    const key = 'auto_check_spans';
+    
+    // 获取已保存的 sid 数组
+    let sidArray = [];
+    try {
+      const stored = sessionStorage.getItem(key);
+      if (stored) {
+        sidArray = JSON.parse(stored);
+        if (!Array.isArray(sidArray)) {
+          sidArray = [];
+        }
+      }
+    } catch (e) {
+      // 如果解析失败，使用空数组
+      sidArray = [];
+    }
+    
+    // 如果 sid 值不在数组中，则添加
+    if (!sidArray.includes(sidStr)) {
+      sidArray.push(sidStr);
+      sessionStorage.setItem(key, JSON.stringify(sidArray));
+      
+      if (window.__autoCheckDebug) {
+        console.log(`✅ [DataUtil] 保存 sid 值成功:`, {
+          sid: sidStr,
+          key,
+          totalCount: sidArray.length,
+          allSids: sidArray
+        });
+      }
+      
+      return true;
+    } else {
+      if (window.__autoCheckDebug) {
+        console.log(`ℹ️ [DataUtil] sid 值已存在，跳过保存:`, {
+          sid: sidStr,
+          key,
+          totalCount: sidArray.length
+        });
+      }
+      return true; // 已存在也算成功
+    }
+  } catch (error) {
+    console.error('❌ [DataUtil] 保存 sid 值失败:', error);
+    return false;
+  }
+}
+
+/**
+ * 获取所有保存的 sid 值数组
+ * @returns {Array<string>} sid 值数组，如果不存在则返回空数组
+ */
+export function getSids() {
+  try {
+    const key = 'auto_check_spans';
+    const stored = sessionStorage.getItem(key);
+    
+    if (!stored) {
+      if (window.__autoCheckDebug) {
+        console.log(`ℹ️ [DataUtil] 未找到保存的 sid 数组`);
+      }
+      return [];
+    }
+
+    const sidArray = JSON.parse(stored);
+    if (!Array.isArray(sidArray)) {
+      console.warn('[DataUtil] 存储的数据不是数组格式，返回空数组');
+      return [];
+    }
+    
+    if (window.__autoCheckDebug) {
+      console.log(`✅ [DataUtil] 获取 sid 数组成功:`, {
+        count: sidArray.length,
+        sids: sidArray
+      });
+    }
+    
+    return sidArray;
+  } catch (error) {
+    console.error('❌ [DataUtil] 获取 sid 数组失败:', error);
+    return [];
+  }
+}
+
 // 如果作为全局脚本加载，暴露到 window 对象
 if (typeof window !== 'undefined') {
   window.dataUtil = {
@@ -191,7 +365,11 @@ if (typeof window !== 'undefined') {
     getData,
     extractUidFromUrl,
     clearData,
-    getAllData
+    getAllData,
+    saveSpanValue,
+    getSpanValue,
+    saveSid,
+    getSids
   };
 }
 
