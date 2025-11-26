@@ -2421,18 +2421,24 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
               <input type="checkbox" id="isBlack" data-issue-type="isBlack">
               <span class="checkbox-label">黑屏</span>
             </label>
+            <label class="checkbox-item">
+              <input type="checkbox" id="isVideoFrozen" data-issue-type="isVideoFrozen">
+              <span class="checkbox-label">视频上行卡顿</span>
+            </label>
           </div>
         </div>
         <div class="chart-tabs">
           <button class="tab-btn active" data-tab="aec">AEC Delay</button>
           <button class="tab-btn" data-tab="signal">Signal Level</button>
           <button class="tab-btn" data-tab="record">Record Volume</button>
+          <button class="tab-btn" data-tab="video">视频上行卡顿</button>
           <button class="tab-btn" data-tab="combined">组合视图</button>
         </div>
         <div class="chart-canvas-container">
           <canvas id="aecDelayChart" width="600" height="300"></canvas>
           <canvas id="signalLevelChart" width="600" height="300" style="display: none;"></canvas>
           <canvas id="recordVolumeChart" width="600" height="300" style="display: none;"></canvas>
+          <canvas id="videoFrozenChart" width="600" height="300" style="display: none;"></canvas>
           <canvas id="combinedChart" width="600" height="300" style="display: none;"></canvas>
         </div>
       </div>
@@ -3303,6 +3309,7 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, recordS
     document.getElementById('aecDelayChart').style.display = tabName === 'aec' ? 'block' : 'none';
     document.getElementById('signalLevelChart').style.display = tabName === 'signal' ? 'block' : 'none';
     document.getElementById('recordVolumeChart').style.display = tabName === 'record' ? 'block' : 'none';
+    document.getElementById('videoFrozenChart').style.display = tabName === 'video' ? 'block' : 'none';
     document.getElementById('combinedChart').style.display = tabName === 'combined' ? 'block' : 'none';
   };
 
@@ -3667,6 +3674,10 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, recordSignal
           <label class="checkbox-item">
             <input type="checkbox" id="isBlack" data-issue-type="isBlack">
             <span class="checkbox-label">黑屏</span>
+          </label>
+          <label class="checkbox-item">
+            <input type="checkbox" id="isVideoFrozen" data-issue-type="isVideoFrozen">
+            <span class="checkbox-label">视频上行卡顿</span>
           </label>
         </div>
       </div>
