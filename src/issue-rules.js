@@ -65,6 +65,14 @@ const ISSUE_RULES = {
       isAudioStutter: 0,
       isBlack: 0
     },
+    'Audio Signal Level Nearout': {
+      isErrorCode: 0,
+      isNoSound: 1,
+      isLowLevel: 1,
+      isEcho: 0,
+      isAudioStutter: 0,
+      isBlack: 0
+    },
     'A RECORD SIGNAL VOLUME': {
       isErrorCode: 0,
       isNoSound: 1,
@@ -252,6 +260,7 @@ function generateIssueRulesTable() {
  */
 function extractMetricNameFromTitle(titleText) {
   if (titleText.includes('AEC Delay')) return 'Audio AEC Delay';
+  if (titleText.includes('Signal Level Nearout')) return 'Audio Signal Level Nearout';
   if (titleText.includes('Signal Level')) return 'Audio Signal Level Nearin';
   if (titleText.includes('Record Volume')) return 'A RECORD SIGNAL VOLUME';
   if (titleText.includes('Error Code')) return 'Chat Engine Error Code';
