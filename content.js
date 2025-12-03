@@ -105,6 +105,8 @@ function injectInjectedScript() {
               if (window.__autoCheckDebug) {
                 console.log(`[Content Script] 已保存 events_${data.sid} 到 dataUtil`);
               }
+              // 保存 events 数据后，启用所有 auto-check 按钮
+              enableAutoCheckButtons();
             } catch (e) {
               console.warn('[Content Script] 保存 events 数据到 dataUtil 失败:', e);
             }
@@ -865,6 +867,8 @@ function createAutoCheckButton() {
   button.className = 'btn btn-light btn-sm auto-check-btn';
   button.innerHTML = 'Auto Check';
   button.title = '自动检查';
+  // 初始状态：禁用按钮，等待 events 数据保存后才能点击
+  button.disabled = true;
   
   // 添加点击事件
   button.addEventListener('click', function() {
@@ -897,6 +901,17 @@ function createAutoCheckButton() {
   });
   
   return button;
+}
+
+// 启用所有 auto-check 按钮
+function enableAutoCheckButtons() {
+  const buttons = document.querySelectorAll('.auto-check-btn');
+  buttons.forEach(button => {
+    button.disabled = false;
+  });
+  if (window.__autoCheckDebug) {
+    console.log(`✅ 已启用 ${buttons.length} 个 auto-check 按钮`);
+  }
 }
 
 // 打印网络监听状态信息
