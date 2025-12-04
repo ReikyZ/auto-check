@@ -331,25 +331,40 @@ export const checkPrivileges = (eventsData) => {
 
   // 遍历 events 数组，查找 name 为 "vos.userPrivileges" 的项
   let foundCount = 0;
-  for (const event of parsed) {
+  for (let i = parsed.length - 1; i >= 0; i--) {
+    const event = parsed[i];
     if (event && event.details) {
       const details = event.details;
       if (details.name === 'vos.userPrivileges') {
         foundCount++;
         console.log('checkPrivileges: 找到 vos.userPrivileges 事件:', details);
-        if ('clientAudioExpireTs' in details) {
-          const clientAudioExpireTs = details.clientAudioExpireTs;
-          console.log('checkPrivileges: clientAudioExpireTs 值:', clientAudioExpireTs);
+        
+        const hasAudioExpireTs = 'clientAudioExpireTs' in details;
+        const hasVideoExpireTs = 'clientVideoExpireTs' in details;
+        
+        if (hasAudioExpireTs || hasVideoExpireTs) {
+          const clientAudioExpireTs = hasAudioExpireTs ? details.clientAudioExpireTs : null;
+          const clientVideoExpireTs = hasVideoExpireTs ? details.clientVideoExpireTs : null;
           
-          // 如果 clientAudioExpireTs 为 0，则输出【无发音频权限】
-          // 否则输出【发流权限正常】
-          if (clientAudioExpireTs === 0) {
-            return '无发音频权限';
+          console.log('checkPrivileges: clientAudioExpireTs 值:', clientAudioExpireTs);
+          console.log('checkPrivileges: clientVideoExpireTs 值:', clientVideoExpireTs);
+          
+          // 检查音频和视频权限
+          const audioExpired = hasAudioExpireTs && clientAudioExpireTs === 0;
+          const videoExpired = hasVideoExpireTs && clientVideoExpireTs === 0;
+          
+          // 根据权限状态返回相应的文本
+          if (audioExpired && videoExpired) {
+            return 'token 无发音频和视频权限';
+          } else if (audioExpired) {
+            return 'token 无发音频权限';
+          } else if (videoExpired) {
+            return 'token 无发视频权限';
           } else {
             return '发流权限正常';
           }
         } else {
-          console.warn('checkPrivileges: 找到 vos.userPrivileges 但缺少 clientAudioExpireTs 字段');
+          console.warn('checkPrivileges: 找到 vos.userPrivileges 但缺少 clientAudioExpireTs 和 clientVideoExpireTs 字段');
         }
       }
     }
@@ -439,7 +454,7 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
   if (privilegesText !== null) {
     if (privilegesText !== '发流权限正常'){
       // 黑色高亮并加粗
-      const privilegesIcon = privilegesText === '无发音频权限' ? '🚫' : '✅';
+      const privilegesIcon = '🚫';
       baseInfoHTML += `<div class="info-item"><span style="color:#000000;font-weight:bold;">${privilegesIcon} ${privilegesText}</span></div>`;
     }
   } else {
