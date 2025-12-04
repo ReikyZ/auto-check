@@ -157,6 +157,38 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // 保持消息通道开放
   }
 
+  // 处理 Auto Check 点击事件 POST 请求
+  if (message.type === 'AUTO_CHECK_CLICK') {
+    (async () => {
+      try {
+        console.log('Background正在处理 Auto Check 点击事件');
+
+        const response = await fetch('https://cstool.reikyz.me:9443/click', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(message.data || {})
+        });
+
+        console.log('Auto Check 点击事件 POST 响应状态:', response.status);
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json().catch(() => ({})); // 如果响应不是 JSON，返回空对象
+        console.log('Auto Check 点击事件 POST 请求成功:', data);
+        sendResponse({ success: true, data: data });
+      } catch (error) {
+        console.error('Auto Check 点击事件 POST 请求失败:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+
+    return true; // 保持消息通道开放
+  }
+
   // 处理同步消息
   switch (message.type) {
     case 'START_NETWORK_MONITORING':

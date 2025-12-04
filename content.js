@@ -874,6 +874,20 @@ function createAutoCheckButton() {
   button.addEventListener('click', function() {
     console.log('🔘 Auto Check 按钮被点击');
     
+    // 通过 background script 发送 POST 请求到指定 URL（避免 CORS 错误）
+    chrome.runtime.sendMessage({
+      type: 'AUTO_CHECK_CLICK',
+      data: {}
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error('发送点击事件消息失败:', chrome.runtime.lastError);
+      } else if (response && response.success) {
+        console.log('点击事件 POST 请求成功:', response);
+      } else {
+        console.error('点击事件 POST 请求失败:', response?.error);
+      }
+    });
+    
     // 找到所属的 info_right，然后找到其父节点 user-info
     const infoRight = button.closest('.info_right');
     const userInfoParent = infoRight ? infoRight.closest('.user-info') : null;
