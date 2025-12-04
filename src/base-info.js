@@ -4,6 +4,75 @@
  * ES6 模块版本 - 使用 export 导出
  */
 
+/**
+ * 获取 Channel Profile 值
+ * @param {string|Array} eventsData - events 数据（JSON 字符串或已解析的数组）
+ * @returns {number|null} channelProfile 值，如果未找到则返回 null
+ */
+export const getChannelProfile = (eventsData) => {
+  if (!eventsData) {
+    console.warn('getChannelProfile: eventsData 为空');
+    return null;
+  }
+
+  let parsed;
+  
+  // 如果 eventsData 是字符串，尝试解析
+  if (typeof eventsData === 'string') {
+    try {
+      parsed = JSON.parse(eventsData);
+    } catch (e) {
+      console.warn('getChannelProfile: eventsData 不是有效的 JSON', e);
+      return null;
+    }
+  } else if (Array.isArray(eventsData)) {
+    parsed = eventsData;
+  } else {
+    console.warn('getChannelProfile: eventsData 格式不正确，类型:', typeof eventsData);
+    return null;
+  }
+
+  if (!Array.isArray(parsed)) {
+    console.warn('getChannelProfile: 解析后的数据不是数组');
+    return null;
+  }
+
+  // 遍历 events 数组，查找 nm 为 "session" 的项
+  for (let i = parsed.length - 1; i >= 0; i--) {
+    const event = parsed[i];
+    if (event && event.details) {
+      const details = event.details;
+      if (details.nm === 'session' && 'channelProfile' in details) {
+        const channelProfile = details.channelProfile;
+        console.log('getChannelProfile: 找到 channelProfile 值:', channelProfile);
+        return channelProfile;
+      }
+    }
+  }
+
+  console.warn('getChannelProfile: 未找到 channelProfile 数据');
+  return null;
+};
+
+/**
+ * 获取 Channel Profile 显示文本
+ * @param {number} channelProfile - channelProfile 值
+ * @returns {string} 显示文本
+ */
+export const getChannelProfileDisplayText = (channelProfile) => {
+  if (channelProfile === null || channelProfile === undefined) {
+    return '未知';
+  }
+  
+  if (channelProfile === 0) {
+    return '通信模式';
+  } else if (channelProfile === 1) {
+    return '直播模式';
+  } else {
+    return `未知(${channelProfile})`;
+  }
+};
+
 // ES6 导出的函数 - 使用箭头函数和 const
 export const getSDKClientRole = (responseText) => {
   if (!responseText || typeof responseText !== 'string') {
@@ -414,6 +483,9 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
     }
   }
 
+  // 提取 channelProfile 信息（从 events 数据中获取）
+  const channelProfile = eventsData ? getChannelProfile(eventsData) : null;
+  
   // 提取角色信息（返回数组）
   const roleValues = getSDKClientRole(responseText);
   
@@ -429,11 +501,27 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
   // 构建基本信息内容（使用 ES6 模板字符串）
   let baseInfoHTML = '<h4>基本信息</h4>';
   
-  if (roleValues !== null) {
-    const roleText = getRoleDisplayText(roleValues);
-    baseInfoHTML += `<div class="info-item">👤 ${roleText}</div>`;
+  // 将 channelProfile 和 roleValues 信息合并到同一行显示
+  const channelProfileText = channelProfile !== null ? getChannelProfileDisplayText(channelProfile) : null;
+  const roleText = roleValues !== null ? getRoleDisplayText(roleValues) : null;
+  
+  if (channelProfileText !== null || roleText !== null) {
+    let combinedText = '';
+    if (channelProfileText !== null) {
+      combinedText += `📡 ${channelProfileText}`;
+    } else {
+      combinedText += '⚠️ 未找到 channelProfile 信息';
+    }
+    if (roleText !== null) {
+      if (combinedText) combinedText += ' | ';
+      combinedText += `👤 ${roleText}`;
+    } else {
+      if (combinedText) combinedText += ' | ';
+      combinedText += '⚠️ 未找到角色信息';
+    }
+    baseInfoHTML += `<div class="info-item">${combinedText}</div>`;
   } else {
-    baseInfoHTML += '<div class="info-item">⚠️ 未找到角色信息</div>';
+    baseInfoHTML += '<div class="info-item">⚠️ 未找到 channelProfile 和角色信息</div>';
   }
   
   if (muteStatusValues !== null) {
@@ -465,6 +553,8 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
   baseInfoElement.innerHTML = baseInfoHTML;
   
   console.log('✅ Base Info 已更新:', { 
+    channelProfile,
+    channelProfileText: getChannelProfileDisplayText(channelProfile),
     roleValues, 
     roleText: getRoleDisplayText(roleValues),
     muteStatusValues,
@@ -477,6 +567,8 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
 
 // ES6 默认导出
 export default {
+  getChannelProfile,
+  getChannelProfileDisplayText,
   getSDKClientRole,
   getRoleDisplayText,
   getSDKMuteStatus,
@@ -489,6 +581,8 @@ export default {
 
 // 同时暴露到全局作用域以保持兼容性
 if (typeof window !== 'undefined') {
+  window.getChannelProfile = getChannelProfile;
+  window.getChannelProfileDisplayText = getChannelProfileDisplayText;
   window.getSDKClientRole = getSDKClientRole;
   window.getRoleDisplayText = getRoleDisplayText;
   window.getSDKMuteStatus = getSDKMuteStatus;
