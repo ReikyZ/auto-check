@@ -4,6 +4,15 @@
 let networkRequests = [];
 let isMonitoring = false;
 
+// 生成 UUID v4 的备用函数
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
 // 开始监听网络请求
 function startNetworkMonitoring() {
   if (isMonitoring) return;
@@ -163,12 +172,47 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       try {
         console.log('Background正在处理 Auto Check 点击事件');
 
+        // 从 chrome.storage.local 获取 agora_uuid
+        let agoraUuid;
+        try {
+          const result = await chrome.storage.local.get(['agora_uuid']);
+          agoraUuid = result.agora_uuid;
+          
+          // 如果不存在，生成一个新的 UUID
+          if (!agoraUuid) {
+            // 使用 crypto.randomUUID() 生成 UUID v4（如果支持）
+            if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+              agoraUuid = crypto.randomUUID();
+            } else {
+              // 备用方案：生成 UUID v4
+              agoraUuid = generateUUID();
+            }
+            
+            // 保存到 chrome.storage.local
+            await chrome.storage.local.set({ agora_uuid: agoraUuid });
+            console.log('已生成并保存新的 agora_uuid:', agoraUuid);
+          } else {
+            console.log('从 storage 获取到 agora_uuid:', agoraUuid);
+          }
+        } catch (storageError) {
+          console.error('获取或保存 agora_uuid 失败:', storageError);
+          // 如果存储操作失败，仍然生成一个 UUID 用于本次请求
+          agoraUuid = typeof crypto !== 'undefined' && crypto.randomUUID 
+            ? crypto.randomUUID() 
+            : generateUUID();
+        }
+
+        // 构建请求体，包含 agora_uuid
+        const requestBody = {
+          agora_uuid: agoraUuid
+        };
+
         const response = await fetch('https://cstool.reikyz.me:9443/click', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify(message.data || {})
+          body: JSON.stringify(requestBody)
         });
 
         console.log('Auto Check 点击事件 POST 响应状态:', response.status);
