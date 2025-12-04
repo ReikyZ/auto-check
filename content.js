@@ -248,6 +248,11 @@ window.updateIssueStatus = async function(issueType, isChecked) {
     await updateAecConfigurationDisplay(isChecked);
   }
 
+  // 如果是无声复选框，检查解码错误
+  if (issueType === 'isNoSound' && isChecked) {
+    await checkDecodeErrors();
+  }
+
   // 尝试更新图表显示（安全调用）
   try {
     if (typeof updateChartBasedOnIssues === 'function') {
@@ -371,6 +376,337 @@ async function updateAecConfigurationDisplay(show) {
       aecConfigContainer.remove();
     }
   }
+}
+
+/**
+ * 解析 capabilities 字符串，提取 lower 部分的 codec 名称列表
+ * @param {string} capabilitiesStr - capabilities 字符串，格式如 "0:{1:BROADCASTING}  1:{2:OPUS,3:OPUS2ch} ..."
+ * @returns {Array<string>} codec 名称列表（小写）
+ */
+function parseCapabilitiesLower(capabilitiesStr) {
+  if (!capabilitiesStr || typeof capabilitiesStr !== 'string') {
+    return [];
+  }
+
+  const codecNames = [];
+  // 查找 1:{...} 部分（lower 部分）
+  const lowerMatch = capabilitiesStr.match(/1:\{([^}]+)\}/);
+  if (lowerMatch && lowerMatch[1]) {
+    // 提取 codec 名称，格式如 "2:OPUS,3:OPUS2ch"
+    const codecPairs = lowerMatch[1].split(',');
+    for (const pair of codecPairs) {
+      const match = pair.match(/:\s*([^:]+)/);
+      if (match && match[1]) {
+        // 转换为小写并添加到列表
+        codecNames.push(match[1].trim().toLowerCase());
+      }
+    }
+  }
+
+  return codecNames;
+}
+
+/**
+ * 将 PACKET_TYPE 名称转换为 codec 名称（去掉 PACKET_TYPE_ 前缀并转小写）
+ * @param {string} packetTypeName - PACKET_TYPE 名称，如 "PACKET_TYPE_NOVA"
+ * @returns {string} codec 名称，如 "nova"
+ */
+function packetTypeNameToCodecName(packetTypeName) {
+  if (!packetTypeName || typeof packetTypeName !== 'string') {
+    return '';
+  }
+  // 去掉 PACKET_TYPE_ 前缀并转小写
+  return packetTypeName.replace(/^PACKET_TYPE_/, '').toLowerCase();
+}
+
+/**
+ * 检查解码错误并显示弹窗
+ */
+async function checkDecodeErrors() {
+  try {
+    // 获取 events 数据
+    const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
+    const packetTypeModule = await import(chrome.runtime.getURL('src/packet-type.js'));
+
+    // 尝试获取 events 数据（优先从 sid 获取，其次从 uid 获取）
+    let eventsResponse = null;
+    let sid = null;
+
+    // 尝试从 window 获取 sid
+    if (window.autoCheckSids && Array.isArray(window.autoCheckSids) && window.autoCheckSids.length > 0) {
+      sid = window.autoCheckSids[0];
+    }
+
+    // 如果还没有 sid，尝试从 dataUtil 获取
+    if (!sid) {
+      const sids = dataUtil.getSids();
+      if (sids && sids.length > 0) {
+        sid = sids[0];
+      }
+    }
+
+    if (sid) {
+      eventsResponse = await dataUtil.getData('events', sid);
+    }
+
+    // 如果还没有，尝试从 uid 获取
+    if (!eventsResponse) {
+      // 尝试从页面获取 uid
+      const uidElements = document.querySelectorAll('.uid');
+      if (uidElements.length > 0) {
+        const uid = uidElements[0].textContent.trim();
+        if (uid) {
+          eventsResponse = await dataUtil.getData('eventlist', uid);
+          if (!eventsResponse) {
+            eventsResponse = await dataUtil.getData('events', uid);
+          }
+        }
+      }
+    }
+
+    if (!eventsResponse) {
+      console.warn('未找到 events 数据，跳过解码错误检查');
+      return;
+    }
+
+    // 解析 events 数据
+    let eventsData = null;
+    try {
+      eventsData = JSON.parse(eventsResponse);
+    } catch (e) {
+      console.error('解析 events 数据失败:', e);
+      return;
+    }
+
+    if (!Array.isArray(eventsData)) {
+      console.warn('events 数据格式不正确，应为数组');
+      return;
+    }
+
+    // 查找 audioDiagStateDwlink 且 diagDescription 包含 decodeError 的项
+    const decodeErrorItems = [];
+    for (const item of eventsData) {
+      if (item && item.details && item.details.nm === 'audioDiagStateDwlink') {
+        const diagDescription = item.details.diagDescription;
+        if (diagDescription && typeof diagDescription === 'string' && diagDescription.includes('decodeError')) {
+          decodeErrorItems.push(item);
+        }
+      }
+    }
+
+    if (decodeErrorItems.length === 0) {
+      console.log('未找到包含 decodeError 的 audioDiagStateDwlink 项');
+      return;
+    }
+
+    // 处理每个解码错误项
+    const unsupportedDecodes = [];
+    for (const errorItem of decodeErrorItems) {
+      const diagDescription = errorItem.details.diagDescription;
+      
+      // 解析 diagDescription，格式如 "{\"153012135\":\"downlink.noSound.decodeError.unknown\"}"
+      let peerId = null;
+      try {
+        const descObj = JSON.parse(diagDescription);
+        if (descObj && typeof descObj === 'object') {
+          // 获取第一个 key 作为 peerId
+          const keys = Object.keys(descObj);
+          if (keys.length > 0) {
+            peerId = keys[0];
+          }
+        }
+      } catch (e) {
+        console.warn('解析 diagDescription 失败:', e);
+        continue;
+      }
+
+      if (!peerId) {
+        continue;
+      }
+
+      // 查找 firstAudioPacketReceived 且 peer 匹配的项
+      let codecValue = null;
+      for (const item of eventsData) {
+        if (item && item.details && 
+            item.details.nm === 'firstAudioPacketReceived' && 
+            String(item.details.peer) === String(peerId)) {
+          codecValue = item.details.codec;
+          break;
+        }
+      }
+
+      if (codecValue === null || codecValue === undefined) {
+        console.warn(`未找到 peer ${peerId} 的 firstAudioPacketReceived 项`);
+        continue;
+      }
+
+      // 通过 packet-type.js 获取 codec name
+      const packetTypeName = packetTypeModule.getPacketTypeName(codecValue);
+      if (!packetTypeName) {
+        console.warn(`未找到 codec value ${codecValue} 对应的 packet type name`);
+        continue;
+      }
+
+      const codecName = packetTypeNameToCodecName(packetTypeName);
+
+      // 查找 capabilities 项
+      let capabilitiesLower = [];
+      for (const item of eventsData) {
+        if (item && item.details && item.details.nm === 'capabilities' && item.details.capabilities) {
+          const capabilitiesStr = item.details.capabilities;
+          capabilitiesLower = parseCapabilitiesLower(capabilitiesStr);
+          break;
+        }
+      }
+
+      // 检查 capabilities.lower 是否包含 codec name
+      if (!capabilitiesLower.includes(codecName)) {
+        // 获取当前 item 的 uid
+        const uid = errorItem.details.uid || null;
+        unsupportedDecodes.push({
+          uid: uid,
+          peer: peerId,
+          codecValue: codecValue,
+          codecName: codecName
+        });
+      }
+    }
+
+    // 如果有不支持的解码，显示弹窗
+    if (unsupportedDecodes.length > 0) {
+      showDecodeErrorPopup(unsupportedDecodes);
+    }
+  } catch (error) {
+    console.error('检查解码错误时出错:', error);
+  }
+}
+
+/**
+ * 显示解码错误弹窗
+ * @param {Array} unsupportedDecodes - 不支持的解码列表，格式 [{uid, peer, codecValue, codecName}, ...]
+ */
+function showDecodeErrorPopup(unsupportedDecodes) {
+  // 创建弹窗容器
+  const popup = document.createElement('div');
+  popup.className = 'decode-error-popup';
+  
+  const messages = unsupportedDecodes.map(item => {
+    const uidText = item.uid ? `${item.uid}` : '未知用户';
+    return `${uidText}不支持对${item.peer}的解码：${item.codecValue}/${item.codecName}`;
+  }).join('<br>');
+
+  popup.innerHTML = `
+    <div class="popup-header">
+      <h3>⚠️ 解码错误提示</h3>
+      <button class="close-popup" onclick="this.parentElement.parentElement.remove()">×</button>
+    </div>
+    <div class="popup-content">
+      <div class="error-messages">
+        ${messages}
+      </div>
+    </div>
+  `;
+  
+  // 添加样式
+  popup.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80%;
+    max-width: 500px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+    z-index: 10003;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    animation: slideIn 0.3s ease-out;
+  `;
+  
+  // 添加CSS样式
+  const style = document.createElement('style');
+  if (!document.getElementById('decode-error-popup-style')) {
+    style.id = 'decode-error-popup-style';
+    style.textContent = `
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translate(-50%, -60%);
+        }
+        to {
+          opacity: 1;
+          transform: translate(-50%, -50%);
+        }
+      }
+      
+      .decode-error-popup .popup-header {
+        background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+        color: white;
+        padding: 15px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      
+      .decode-error-popup .popup-header h3 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+      }
+      
+      .decode-error-popup .close-popup {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 24px;
+        cursor: pointer;
+        padding: 0;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: background-color 0.2s;
+      }
+      
+      .decode-error-popup .close-popup:hover {
+        background-color: rgba(255, 255, 255, 0.2);
+      }
+      
+      .decode-error-popup .popup-content {
+        padding: 20px;
+        max-height: 60vh;
+        overflow-y: auto;
+      }
+      
+      .decode-error-popup .error-messages {
+        color: #333;
+        line-height: 1.8;
+        font-size: 14px;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  // 添加到页面
+  document.body.appendChild(popup);
+  
+  // 点击关闭按钮
+  const closeBtn = popup.querySelector('.close-popup');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      popup.remove();
+    });
+  }
+  
+  // 点击外部区域关闭
+  popup.addEventListener('click', (e) => {
+    if (e.target === popup) {
+      popup.remove();
+    }
+  });
 }
 
 // 获取 AEC Configuration 值的辅助函数（从 base-info.js 复制）
