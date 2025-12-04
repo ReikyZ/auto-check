@@ -195,8 +195,28 @@ setInterval(() => {
   );
 }, 5 * 60 * 1000); // 每5分钟清理一次
 
-// 处理来自 content script 的消息
+// 处理来自 content script 和 popup 的消息
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  // 处理来自 popup 的启用按钮消息，转发到 content script
+  if (request.type === 'ENABLE_AUTO_CHECK_BUTTONS') {
+    console.log('📡 Background: 收到启用 auto-check 按钮的请求');
+    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+      if (tabs && tabs[0]) {
+        chrome.tabs.sendMessage(tabs[0].id, {
+          type: 'ENABLE_AUTO_CHECK_BUTTONS'
+        }, function(response) {
+          if (chrome.runtime.lastError) {
+            console.log('⚠️ Background: 转发消息到 content script 失败:', chrome.runtime.lastError.message);
+          } else {
+            console.log('✅ Background: 已转发消息到 content script');
+          }
+        });
+      }
+    });
+    sendResponse({ success: true });
+    return true;
+  }
+  
   if (request.action === 'getVersion') {
     console.log('📡 Background: 收到获取版本请求');
 

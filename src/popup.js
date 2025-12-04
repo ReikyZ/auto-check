@@ -300,6 +300,82 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
+  // 监听 popup 关闭事件，重新启用所有 auto-check 按钮
+  // 使用 blur 事件，这是 Chrome Extension popup 关闭时最可靠的事件
+  let enableButtonsOnClose = function() {
+    console.log('🔄 Popup: 开始处理关闭事件，准备启用 auto-check 按钮');
+    
+    // 直接通过 background script 转发消息，这样更可靠
+    console.log('📤 Popup: 发送消息到 background script');
+    chrome.runtime.sendMessage({
+      type: 'ENABLE_AUTO_CHECK_BUTTONS'
+    }, function(response) {
+      if (chrome.runtime.lastError) {
+        console.log('⚠️ Popup: 发送消息到 background 失败:', chrome.runtime.lastError.message);
+        // 如果 background 失败，尝试直接发送到 content script
+        console.log('🔄 Popup: 尝试直接发送消息到 content script');
+        chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+          if (tabs && tabs[0]) {
+            console.log(`📤 Popup: 直接发送消息到 tab ${tabs[0].id}`);
+            chrome.tabs.sendMessage(tabs[0].id, {
+              type: 'ENABLE_AUTO_CHECK_BUTTONS'
+            }, function(response) {
+              if (chrome.runtime.lastError) {
+                console.log('⚠️ Popup: 直接发送到 content script 也失败:', chrome.runtime.lastError.message);
+              } else {
+                console.log('✅ Popup: 已直接发送消息到 content script，响应:', response);
+              }
+            });
+          } else {
+            console.log('⚠️ Popup: 未找到活动标签页');
+          }
+        });
+      } else {
+        console.log('✅ Popup: 已通过 background 转发消息，响应:', response);
+      }
+    });
+  };
+
+  // 防止重复触发
+  let hasTriggered = false;
+  let enableButtonsOnCloseWrapper = function(eventName) {
+    if (hasTriggered) {
+      console.log(`⏭️ Popup: ${eventName} 事件已触发，跳过（避免重复）`);
+      return;
+    }
+    hasTriggered = true;
+    console.log(`👋 Popup: ${eventName} 事件触发`);
+    enableButtonsOnClose();
+    
+    // 3秒后重置标志，以防需要再次触发
+    setTimeout(() => {
+      hasTriggered = false;
+    }, 3000);
+  };
+
+  // 监听多个事件以确保消息能够发送
+  // blur 事件是最可靠的，当 popup 失去焦点时触发
+  window.addEventListener('blur', function() {
+    enableButtonsOnCloseWrapper('blur');
+  });
+  
+  // beforeunload 作为备用
+  window.addEventListener('beforeunload', function() {
+    enableButtonsOnCloseWrapper('beforeunload');
+  });
+  
+  // pagehide 作为备用（在某些浏览器中更可靠）
+  window.addEventListener('pagehide', function() {
+    enableButtonsOnCloseWrapper('pagehide');
+  });
+  
+  // visibilitychange 作为备用
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+      enableButtonsOnCloseWrapper('visibilitychange');
+    }
+  });
+
   // 新增：从 issue-rules.js 导入必要函数（确保在浏览器环境中可用）
   if (typeof window.getMetricsForIssueType === 'undefined') {
     // 如果函数未定义，说明 issue-rules.js 未正确加载，需要手动定义或确保加载顺序

@@ -189,6 +189,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true; // 保持消息通道开放
   }
 
+  // 处理启用 auto-check 按钮的消息，转发到 content script
+  if (message.type === 'ENABLE_AUTO_CHECK_BUTTONS') {
+    console.log('📡 Background: 收到启用 auto-check 按钮的请求');
+    chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+      if (tabs && tabs[0]) {
+        console.log(`📡 Background: 准备转发消息到 tab ${tabs[0].id}`);
+        chrome.tabs.sendMessage(tabs[0].id, {
+          type: 'ENABLE_AUTO_CHECK_BUTTONS'
+        }, function(response) {
+          if (chrome.runtime.lastError) {
+            console.log('⚠️ Background: 转发消息到 content script 失败:', chrome.runtime.lastError.message);
+          } else {
+            console.log('✅ Background: 已转发消息到 content script，响应:', response);
+          }
+        });
+      } else {
+        console.log('⚠️ Background: 未找到活动标签页');
+      }
+    });
+    sendResponse({ success: true });
+    return true;
+  }
+
   // 处理同步消息
   switch (message.type) {
     case 'START_NETWORK_MONITORING':

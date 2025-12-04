@@ -1210,6 +1210,9 @@ function createAutoCheckButton() {
   button.addEventListener('click', function() {
     console.log('🔘 Auto Check 按钮被点击');
     
+    // 禁用所有 auto-check 按钮
+    disableAutoCheckButtons();
+    
     // 通过 background script 发送 POST 请求到指定 URL（避免 CORS 错误）
     chrome.runtime.sendMessage({
       type: 'AUTO_CHECK_CLICK',
@@ -1253,14 +1256,35 @@ function createAutoCheckButton() {
   return button;
 }
 
+// 禁用所有 auto-check 按钮
+function disableAutoCheckButtons() {
+  const buttons = document.querySelectorAll('.auto-check-btn');
+  const buttonCount = buttons.length;
+  buttons.forEach(button => {
+    button.disabled = true;
+  });
+  console.log(`🔒 Content Script: 已禁用 ${buttonCount} 个 auto-check 按钮`);
+  if (window.__autoCheckDebug) {
+    console.log('🔍 按钮详情:', Array.from(buttons).map(btn => ({
+      disabled: btn.disabled,
+      text: btn.textContent.trim()
+    })));
+  }
+}
+
 // 启用所有 auto-check 按钮
 function enableAutoCheckButtons() {
   const buttons = document.querySelectorAll('.auto-check-btn');
+  const buttonCount = buttons.length;
   buttons.forEach(button => {
     button.disabled = false;
   });
+  console.log(`✅ Content Script: 已启用 ${buttonCount} 个 auto-check 按钮`);
   if (window.__autoCheckDebug) {
-    console.log(`✅ 已启用 ${buttons.length} 个 auto-check 按钮`);
+    console.log('🔍 按钮详情:', Array.from(buttons).map(btn => ({
+      disabled: btn.disabled,
+      text: btn.textContent.trim()
+    })));
   }
 }
 
@@ -6058,6 +6082,44 @@ if (document.readyState === 'loading') {
     findResponse();
   }, 1500);
 }
+
+// 监听来自 popup 或 background 的消息
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log('📨 Content Script: 收到消息', message.type, '来自', sender);
+  
+  if (message.type === 'ENABLE_AUTO_CHECK_BUTTONS') {
+    console.log('📨 Content Script: 收到启用 auto-check 按钮的消息');
+    console.log('📨 Content Script: 消息来源:', sender);
+    
+    try {
+      enableAutoCheckButtons();
+      console.log('✅ Content Script: 已启用所有 auto-check 按钮');
+      sendResponse({ success: true });
+    } catch (error) {
+      console.error('❌ Content Script: 启用按钮时出错:', error);
+      sendResponse({ success: false, error: error.message });
+    }
+    return true; // 保持消息通道开放
+  }
+  
+  console.log('⚠️ Content Script: 未处理的消息类型:', message.type);
+  return false; // 不处理其他消息类型
+});
+
+// 监听所有 close-chart 按钮的点击事件，点击时启用所有 auto-check 按钮
+document.addEventListener('click', function(event) {
+  // 检查点击的元素是否是 close-chart 按钮或其子元素
+  const closeChartButton = event.target.closest('.close-chart');
+  if (closeChartButton) {
+    console.log('🔘 Content Script: close-chart 按钮被点击');
+    console.log('🔘 Content Script: 准备启用所有 auto-check 按钮');
+    
+    // 启用所有 auto-check 按钮
+    enableAutoCheckButtons();
+    
+    console.log('✅ Content Script: 已启用所有 auto-check 按钮（通过 close-chart 点击）');
+  }
+}, true); // 使用捕获阶段，确保在 onclick 内联事件之前执行
 
 // 监听页面变化，动态添加按钮
 // 简单去抖，避免频繁触发重复扫描
