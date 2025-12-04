@@ -3982,7 +3982,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
     transform: translate(-50%, -50%);
     width: 90%;
     max-width: 1000px;
-    max-height: 85vh;
+    max-height: 100vh;
     background: white;
     border-radius: 12px;
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);

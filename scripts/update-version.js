@@ -11,11 +11,32 @@ const versionFile = path.join(__dirname, '..', 'version');
 const versionJsFile = path.join(__dirname, '..', 'src', 'version.js');
 
 try {
-  // 读取 version 文件
-  const version = fs.readFileSync(versionFile, 'utf8').trim();
-  const versionNumber = parseInt(version) || 1;
+  let versionNumber = 1;
   
-  console.log(`📦 读取版本号: ${versionNumber}`);
+  // 尝试读取 version 文件
+  if (fs.existsSync(versionFile)) {
+    const version = fs.readFileSync(versionFile, 'utf8').trim();
+    versionNumber = parseInt(version) || 1;
+    console.log(`📦 从 version 文件读取版本号: ${versionNumber}`);
+  } else {
+    // 如果 version 文件不存在，尝试从现有的 version.js 读取
+    if (fs.existsSync(versionJsFile)) {
+      const versionJsContent = fs.readFileSync(versionJsFile, 'utf8');
+      const match = versionJsContent.match(/export const VERSION = (\d+);/);
+      if (match) {
+        versionNumber = parseInt(match[1]) || 1;
+        console.log(`📦 从 version.js 读取版本号: ${versionNumber}`);
+      } else {
+        console.log(`⚠️  无法从 version.js 读取版本号，使用默认值: ${versionNumber}`);
+      }
+    } else {
+      console.log(`⚠️  version 文件不存在，使用默认版本号: ${versionNumber}`);
+    }
+    
+    // 创建 version 文件
+    fs.writeFileSync(versionFile, versionNumber.toString(), 'utf8');
+    console.log(`✅ 已创建 version 文件，版本号: ${versionNumber}`);
+  }
   
   // 生成 version.js 内容
   const versionJsContent = `/**

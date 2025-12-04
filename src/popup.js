@@ -79,6 +79,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
+  // 新增：更新 popup 高度以适应内容
+  function updatePopupHeight() {
+    // 使用 requestAnimationFrame 确保 DOM 更新后再计算高度
+    requestAnimationFrame(() => {
+      // 获取 body 的实际内容高度
+      const bodyHeight = document.body.scrollHeight;
+      // 设置 popup 高度等于内容高度
+      document.body.style.height = `${bodyHeight}px`;
+      document.documentElement.style.height = `${bodyHeight}px`;
+    });
+  }
+
   // 新增：更新分析显示
   function updateAnalysisDisplay() {
     const selectedIssues = Array.from(issueCheckboxes)
@@ -89,6 +101,8 @@ document.addEventListener('DOMContentLoaded', function() {
       // 没有勾选任何 issue 时，隐藏分析区域
       analysisResultsEl.style.display = 'none';
       analysisContentEl.innerHTML = '';
+      // 更新 popup 高度以适应内容
+      updatePopupHeight();
       return;
     }
 
@@ -101,6 +115,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // 生成分析内容
     const analysisContent = generateAnalysisContent(relatedMetrics);
     analysisContentEl.innerHTML = analysisContent;
+
+    // 移除分析结果区域的 max-height 限制，让它自动适应内容
+    analysisResultsEl.style.maxHeight = 'none';
+    
+    // 更新 popup 高度以适应内容
+    updatePopupHeight();
   }
 
   // 新增：根据选中的 issue 获取相关指标
