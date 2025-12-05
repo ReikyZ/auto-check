@@ -6118,6 +6118,15 @@ document.addEventListener('click', function(event) {
     enableAutoCheckButtons();
     
     console.log('✅ Content Script: 已启用所有 auto-check 按钮（通过 close-chart 点击）');
+    window.audioAnalysisIssues = {
+      isErrorCode: false,
+      isNoSound: false,
+      isLowLevel: false,
+      isEcho: false,
+      isAudioStutter: false,
+      isBlack: false
+    };
+    
   }
 }, true); // 使用捕获阶段，确保在 onclick 内联事件之前执行
 

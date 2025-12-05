@@ -305,6 +305,15 @@ document.addEventListener('DOMContentLoaded', function() {
   let enableButtonsOnClose = function() {
     console.log('🔄 Popup: 开始处理关闭事件，准备启用 auto-check 按钮');
     
+    // 重置所有 checkbox 状态为未勾选
+    issueCheckboxes.forEach(checkbox => {
+      checkbox.checked = false;
+    });
+    console.log('✅ Popup: 已重置所有 checkbox 状态');
+    
+    // 更新分析显示（隐藏分析结果区域）
+    updateAnalysisDisplay();
+    
     // 直接通过 background script 转发消息，这样更可靠
     console.log('📤 Popup: 发送消息到 background script');
     chrome.runtime.sendMessage({
