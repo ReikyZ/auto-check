@@ -250,7 +250,33 @@ window.updateIssueStatus = async function(issueType, isChecked) {
 
   // 如果是无声复选框，检查解码错误
   if (issueType === 'isNoSound' && isChecked) {
-    await checkDecodeErrors();
+    // 获取 sid：优先从全局变量获取，如果没有则尝试从页面中获取
+    let sid = window.currentSid || null;
+    
+    // 如果全局变量中没有，尝试从页面中获取
+    if (!sid) {
+      // 尝试查找最近的 auto-check 按钮，然后获取其对应的 sid
+      const chartContainer = document.querySelector('.combined-audio-analysis-container');
+      if (chartContainer) {
+        // 查找最近的 auto-check 按钮
+        const autoCheckButtons = document.querySelectorAll('.auto-check-btn');
+        if (autoCheckButtons.length > 0) {
+          // 使用第一个找到的 auto-check 按钮来获取 sid
+          const firstButton = autoCheckButtons[0];
+          const sidFromPage = collectSidValues(firstButton.closest('.user-info') || document);
+          if (sidFromPage) {
+            if (Array.isArray(sidFromPage) && sidFromPage.length > 0) {
+              sid = sidFromPage[0].value || sidFromPage[0];
+            } else if (typeof sidFromPage === 'string' && sidFromPage) {
+              sid = sidFromPage;
+            }
+          }
+        }
+      }
+    }
+    
+    console.log('checkDecodeErrors called with sid:', sid);
+    await checkDecodeErrors(sid);
   }
 
   // 尝试更新图表显示（安全调用）
@@ -422,7 +448,7 @@ function packetTypeNameToCodecName(packetTypeName) {
 /**
  * 检查解码错误并显示弹窗
  */
-async function checkDecodeErrors() {
+async function checkDecodeErrors(sid = null) {
   try {
     // 获取 events 数据
     const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
@@ -430,19 +456,10 @@ async function checkDecodeErrors() {
 
     // 尝试获取 events 数据（优先从 sid 获取，其次从 uid 获取）
     let eventsResponse = null;
-    let sid = null;
 
     // 尝试从 window 获取 sid
     if (window.autoCheckSids && Array.isArray(window.autoCheckSids) && window.autoCheckSids.length > 0) {
       sid = window.autoCheckSids[0];
-    }
-
-    // 如果还没有 sid，尝试从 dataUtil 获取
-    if (!sid) {
-      const sids = dataUtil.getSids();
-      if (sids && sids.length > 0) {
-        sid = sids[0];
-      }
     }
 
     if (sid) {
@@ -1330,6 +1347,21 @@ async function performAutoCheck(scopeRoot = document, scopeIndex = undefined) {
     const sidValues = collectSidValues(scopeRoot);
 
     console.log('sidValues:', sidValues);
+    
+    // 保存 sid 到全局变量，供后续使用
+    if (sidValues) {
+      let sid = null;
+      if (Array.isArray(sidValues) && sidValues.length > 0) {
+        sid = sidValues[0].value || sidValues[0];
+      } else if (typeof sidValues === 'string' && sidValues) {
+        sid = sidValues;
+      }
+      if (sid) {
+        window.currentSid = sid;
+        window.autoCheckSids = [sid];
+        console.log('已保存 sid 到全局变量:', sid);
+      }
+    }
     
     // 显示 uid 值弹窗
     const scopeLabel = scopeIndex !== undefined ? `info_right[${scopeIndex}]` : undefined;
