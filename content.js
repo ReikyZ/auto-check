@@ -4417,6 +4417,11 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
         font-weight: 600;
       }
       
+      .combined-audio-analysis-container.fallback-chart .chart-header {
+        cursor: move;
+        user-select: none;
+      }
+      
       .combined-audio-analysis-container .close-chart {
         background: none;
         border: none;
@@ -5111,6 +5116,54 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
   }
 
   document.body.appendChild(chartContainer);
+
+  // 为 fallback-chart 添加拖拽功能
+  if (chartContainer.classList.contains('fallback-chart')) {
+    const chartHeader = chartContainer.querySelector('.chart-header');
+    if (chartHeader) {
+      let isDragging = false;
+      let startX;
+      let startY;
+      let initialLeft;
+      let initialTop;
+
+      chartHeader.addEventListener('mousedown', (e) => {
+        // 如果点击的是关闭按钮，不触发拖拽
+        if (e.target.classList.contains('close-chart') || e.target.closest('.close-chart')) {
+          return;
+        }
+
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        
+        // 获取当前容器的位置
+        const rect = chartContainer.getBoundingClientRect();
+        initialLeft = rect.left;
+        initialTop = rect.top;
+        
+        // 移除 transform 居中，改用绝对定位
+        chartContainer.style.transform = 'none';
+        chartContainer.style.left = initialLeft + 'px';
+        chartContainer.style.top = initialTop + 'px';
+      });
+
+      document.addEventListener('mousemove', (e) => {
+        if (isDragging) {
+          e.preventDefault();
+          const deltaX = e.clientX - startX;
+          const deltaY = e.clientY - startY;
+          
+          chartContainer.style.left = (initialLeft + deltaX) + 'px';
+          chartContainer.style.top = (initialTop + deltaY) + 'px';
+        }
+      });
+
+      document.addEventListener('mouseup', () => {
+        isDragging = false;
+      });
+    }
+  }
 
   // 创建数据表格
   createDataTable(safeAecDelayData.data, 'aecDataTable');
