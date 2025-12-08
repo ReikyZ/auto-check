@@ -4199,7 +4199,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
           </div>
           <div class="metric-row" data-metric="Audio Signal Level Nearin">
             <div class="metric-data-section">
-              <h4>📈 Signal Level 数据</h4>
+              <h4>📈 Signal Level Nearin 数据</h4>
               <div class="data-table" id="signalDataTable"></div>
             </div>
             <div class="metric-stats-section">
