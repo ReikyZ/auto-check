@@ -243,11 +243,6 @@ window.updateIssueStatus = async function(issueType, isChecked) {
   // 显示调试信息
   console.log('Updated issue status:', window.audioAnalysisIssues);
 
-  // 如果是回声复选框，显示或隐藏 AEC Configuration
-  if (issueType === 'isEcho') {
-    await updateAecConfigurationDisplay(isChecked);
-  }
-
   // 如果是无声复选框，检查解码错误
   if (issueType === 'isNoSound' && isChecked) {
     // 获取 sid：优先从全局变量获取，如果没有则尝试从页面中获取
@@ -299,110 +294,6 @@ window.updateIssueStatus = async function(issueType, isChecked) {
     console.warn('showNotification not available yet:', e);
   }
 };
-
-// 更新 AEC Configuration 显示
-async function updateAecConfigurationDisplay(show) {
-  const chartContainer = document.querySelector('.combined-audio-analysis-container');
-  if (!chartContainer) {
-    console.warn('未找到图表容器');
-    return;
-  }
-
-  // 查找或创建 AEC Configuration 显示区域
-  let aecConfigContainer = chartContainer.querySelector('.aec-config-info');
-  
-  if (show) {
-    // 需要显示 AEC Configuration
-    if (!aecConfigContainer) {
-      // 创建显示区域
-      aecConfigContainer = document.createElement('div');
-      aecConfigContainer.className = 'aec-config-info';
-      aecConfigContainer.style.cssText = `
-        margin: 15px 0;
-        padding: 15px;
-        background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
-        border-radius: 8px;
-        color: white;
-      `;
-      
-      // 插入到 base-info 之后
-      const baseInfo = chartContainer.querySelector('.base-info');
-      if (baseInfo && baseInfo.nextSibling) {
-        baseInfo.parentNode.insertBefore(aecConfigContainer, baseInfo.nextSibling);
-      } else if (baseInfo) {
-        baseInfo.parentNode.appendChild(aecConfigContainer);
-      } else {
-        const chartContent = chartContainer.querySelector('.chart-content');
-        if (chartContent) {
-          chartContent.insertBefore(aecConfigContainer, chartContent.firstChild);
-        }
-      }
-    }
-
-    // 获取 counter response 数据
-    let responseText = null;
-    
-    // 尝试从 window.countersInterceptedRequests 获取
-    if (window.countersInterceptedRequests && window.countersInterceptedRequests.size > 0) {
-      for (const [url, data] of window.countersInterceptedRequests) {
-        if (url && url.includes('/counters') && data && data.responseText) {
-          responseText = data.responseText;
-          break;
-        }
-      }
-    }
-
-    // 如果没找到，尝试从 dataUtil 获取
-    if (!responseText) {
-      try {
-        const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
-        // 尝试获取最新的 counters 数据
-        // 这里需要根据实际情况调整获取逻辑
-      } catch (e) {
-        console.warn('无法导入 dataUtil:', e);
-      }
-    }
-
-    if (responseText) {
-      try {
-        // 动态导入 aec-config 模块
-        const aecConfigModule = await import(chrome.runtime.getURL('src/aec-config.js'));
-        
-        // 获取 AEC Configuration 值
-        const aecConfigValues = getAecConfiguration(responseText);
-        
-        if (aecConfigValues && aecConfigValues.length > 0) {
-          const firstValue = aecConfigValues[0];
-          const formattedText = aecConfigModule.formatAEC(firstValue);
-          
-          // 检查是否有变化
-          const hasVariation = aecConfigValues.some(value => value !== firstValue);
-          
-          let displayHTML = '<h4 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600;">🔧 AEC Configuration</h4>';
-          displayHTML += formattedText.replace(/^<br>/, '');
-          
-          if (hasVariation) {
-            displayHTML += '<br>有变化';
-          }
-          
-          aecConfigContainer.innerHTML = displayHTML;
-        } else {
-          aecConfigContainer.innerHTML = '<h4 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600;">🔧 AEC Configuration</h4><div>未找到 AEC Configuration 数据</div>';
-        }
-      } catch (e) {
-        console.error('显示 AEC Configuration 时出错:', e);
-        aecConfigContainer.innerHTML = '<h4 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600;">🔧 AEC Configuration</h4><div>加载 AEC Configuration 失败</div>';
-      }
-    } else {
-      aecConfigContainer.innerHTML = '<h4 style="margin: 0 0 10px 0; font-size: 16px; font-weight: 600;">🔧 AEC Configuration</h4><div>未找到 counter 数据</div>';
-    }
-  } else {
-    // 隐藏 AEC Configuration
-    if (aecConfigContainer) {
-      aecConfigContainer.remove();
-    }
-  }
-}
 
 /**
  * 解析 capabilities 字符串，提取 lower 部分的 codec 名称列表
@@ -724,51 +615,6 @@ function showDecodeErrorPopup(unsupportedDecodes) {
       popup.remove();
     }
   });
-}
-
-// 获取 AEC Configuration 值的辅助函数（从 base-info.js 复制）
-function getAecConfiguration(responseText) {
-  if (!responseText || typeof responseText !== 'string') {
-    return null;
-  }
-
-  let parsed;
-  try {
-    parsed = JSON.parse(responseText);
-  } catch (e) {
-    return null;
-  }
-
-  const values = [];
-  
-  // 遍历数据结构查找 "Aec Configuration"
-  for (const item of Array.isArray(parsed) ? parsed : []) {
-    if (item && Array.isArray(item.data)) {
-      for (const counter of item.data) {
-        if (
-          counter &&
-          typeof counter.name === 'string' &&
-          counter.name.trim() === 'Aec Configuration' &&
-          Array.isArray(counter.data)
-        ) {
-          // 收集所有非null、非undefined的值（第二列）
-          for (let i = 0; i < counter.data.length; i++) {
-            const dataItem = counter.data[i];
-            const value = Array.isArray(dataItem) ? dataItem[1] : dataItem;
-            if (value !== null && value !== undefined) {
-              values.push(value);
-            }
-          }
-        }
-      }
-    }
-  }
-
-  if (values.length === 0) {
-    return null;
-  }
-  
-  return values;
 }
 
 // 获取问题显示名称

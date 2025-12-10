@@ -5,7 +5,7 @@
  */
 
 // 版本号常量（从 version 文件读取）
-export const VERSION = 10;
+export const VERSION = 11;
 
 // 默认导出
 export default VERSION;
