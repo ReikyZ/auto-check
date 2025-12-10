@@ -2835,7 +2835,7 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalL
       <div class="chart-content">
         ${window.hasNewVersion ? '<div class="update-banner">已有新版，请更新 ⏬ <a href="https://github.com/ReikyZ/auto-check/archive/refs/heads/main.zip" target="_blank" class="update-link">点击下载</a></div>' : ''}
         <div class="base-info">
-          <h4>基本信息</h4>
+          <h4 style="display: inline-block; margin-right: 10px;">基本信息</h4><span class="status-tag">3A状态</span>
         </div>
         <div class="issue-checkboxes">
           <div class="checkbox-group">

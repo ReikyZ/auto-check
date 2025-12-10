@@ -444,6 +444,201 @@ export const checkPrivileges = (eventsData) => {
 };
 
 /**
+ * formatApmStatus 函数 - 解析 APM 状态值
+ * @param {number} e - APM 状态值
+ * @returns {string} HTML 格式的状态文本
+ */
+const formatApmStatus = (e) => {
+  let t = "";
+  const i = e >> 10 & 1;
+  const s = e >> 9 & 1;
+  const n = e >> 8 & 1;
+  const r = e >> 7 & 1;
+  const o = e >> 6 & 1;
+  const a = e >> 5 & 1;
+  const c = e >> 4 & 1;
+  const l = e >> 3 & 1;
+  const u = e >> 2 & 1;
+  const d = e >> 1 & 1;
+  const h = 1 & e;
+  t += "Bypass: ";
+  t += i ? "On" : "Off";
+  t += "<br>";
+  t += "Hpf: ";
+  t += s ? "On" : "Off";
+  t += "<br>";
+  t += "Bss: ";
+  t += n ? "On" : "Off";
+  t += "<br>";
+  t += "Tr: ";
+  t += r ? "On" : "Off";
+  t += "<br>";
+  t += "Ed: ";
+  t += o ? "On" : "Off";
+  t += "<br>";
+  t += "Md: ";
+  t += a ? "On" : "Off";
+  t += "<br>";
+  t += "Ps: ";
+  t += c ? "On" : "Off";
+  t += "<br>";
+  t += "Hw3A: ";
+  t += l ? "On" : "Off";
+  t += "<br>";
+  t += "Ns: ";
+  t += u ? "On" : "Off";
+  t += "<br>";
+  t += "Aec: ";
+  t += d ? "On" : "Off";
+  t += "<br>";
+  t += "Agc: ";
+  t += h ? "On" : "Off";
+  return t;
+};
+
+/**
+ * 获取 A NEARIN APM STATUS 数据
+ * @param {string} responseText - 响应文本（counters 数据）
+ * @returns {Array|null} APM STATUS 值数组（过滤掉 null 值），如果未找到则返回 null
+ */
+export const getApmStatus = (responseText) => {
+  if (!responseText || typeof responseText !== 'string') {
+    console.warn('getApmStatus: responseText 不是有效的字符串');
+    return null;
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(responseText);
+  } catch (e) {
+    console.warn('getApmStatus: responseText 不是有效的 JSON');
+    return null;
+  }
+
+  const values = [];
+  
+  // 遍历数据结构查找 "A NEARIN APM STATUS"
+  for (const item of Array.isArray(parsed) ? parsed : []) {
+    if (item && Array.isArray(item.data)) {
+      for (const counter of item.data) {
+        if (
+          counter &&
+          typeof counter.name === 'string' &&
+          counter.name.trim() === 'A NEARIN APM STATUS' &&
+          Array.isArray(counter.data)
+        ) {
+          // 收集所有非null、非undefined的值（第二列）
+          for (let i = 0; i < counter.data.length; i++) {
+            const dataItem = counter.data[i];
+            const value = Array.isArray(dataItem) ? dataItem[1] : dataItem;
+            if (value !== null && value !== undefined) {
+              values.push(value);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (values.length === 0) {
+    console.warn('未找到 A NEARIN APM STATUS 数据');
+    return null;
+  }
+  
+  return values;
+};
+
+/**
+ * 创建并显示悬浮小窗
+ * @param {MouseEvent} event - 鼠标事件
+ * @param {string} content - 要显示的内容（HTML格式）
+ */
+const showTooltip = (event, content) => {
+  console.log('🔧 showTooltip 被调用，内容:', content);
+  
+  // 移除已存在的悬浮窗
+  const existingTooltip = document.querySelector('.apm-status-tooltip');
+  if (existingTooltip) {
+    console.log('🧹 移除现有悬浮窗');
+    existingTooltip.remove();
+  }
+
+  // 创建悬浮窗
+  const tooltip = document.createElement('div');
+  tooltip.className = 'apm-status-tooltip';
+  tooltip.innerHTML = `<div style="white-space: pre-line;">${content}</div>`; // 确保换行显示
+  
+  // 强制设置样式，确保可见
+  Object.assign(tooltip.style, {
+    position: 'fixed',
+    zIndex: '99999',
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    color: 'white',
+    padding: '12px 16px',
+    borderRadius: '6px',
+    fontSize: '12px',
+    lineHeight: '1.6',
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
+    maxWidth: '350px',
+    wordWrap: 'break-word',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    display: 'block',
+    visibility: 'visible', // 直接显示
+    pointerEvents: 'none',
+    whiteSpace: 'pre-line' // 确保换行
+  });
+  
+  document.body.appendChild(tooltip);
+  
+  console.log('✅ 悬浮窗已创建并添加到 DOM');
+  console.log('📝 悬浮窗元素:', tooltip);
+  console.log('📝 悬浮窗内容:', tooltip.innerHTML);
+  console.log('📝 悬浮窗父元素:', tooltip.parentElement);
+
+  // 等待一个 tick 确保样式应用
+  requestAnimationFrame(() => {
+    const rect = tooltip.getBoundingClientRect();
+    console.log('📐 悬浮窗尺寸:', rect);
+    console.log('📐 悬浮窗是否可见:', rect.width > 0 && rect.height > 0);
+    
+    // 定位到鼠标右下角
+    let x = event.clientX + 10;
+    let y = event.clientY + 10;
+    
+    // 确保不超出视窗
+    if (x + rect.width > window.innerWidth) {
+      x = Math.max(10, event.clientX - rect.width - 10);
+    }
+    if (y + rect.height > window.innerHeight) {
+      y = Math.max(10, event.clientY - rect.height - 10);
+    }
+    
+    tooltip.style.left = `${x}px`;
+    tooltip.style.top = `${y}px`;
+    
+    console.log('📍 最终悬浮窗位置:', { x, y, left: tooltip.style.left, top: tooltip.style.top });
+    console.log('📍 最终悬浮窗边界:', tooltip.getBoundingClientRect());
+    
+    // 检查是否有其他元素遮挡
+    const elementAtPoint = document.elementFromPoint(x + 10, y + 10);
+    console.log('🔍 悬浮窗位置处的元素:', elementAtPoint);
+    if (elementAtPoint && elementAtPoint !== tooltip) {
+      console.warn('⚠️ 悬浮窗可能被其他元素遮挡:', elementAtPoint.className, elementAtPoint.tagName);
+    }
+  });
+};
+
+/**
+ * 隐藏悬浮小窗
+ */
+const hideTooltip = () => {
+  const tooltip = document.querySelector('.apm-status-tooltip');
+  if (tooltip) {
+    tooltip.remove();
+  }
+};
+
+/**
  * 更新 base-info 区域的内容
  * @param {string} responseText - 响应文本（counters 数据）
  * @param {string|Array} eventsData - events 数据（可选）
@@ -499,7 +694,7 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
   const privilegesText = eventsData ? checkPrivileges(eventsData) : null;
   
   // 构建基本信息内容（使用 ES6 模板字符串）
-  let baseInfoHTML = '<h4>基本信息</h4>';
+  let baseInfoHTML = '<h4 style="display: inline-block; margin-right: 10px;">基本信息</h4><span class="status-tag">3A状态</span>';
   
   // 将 channelProfile 和 roleValues 信息合并到同一行显示
   const channelProfileText = channelProfile !== null ? getChannelProfileDisplayText(channelProfile) : null;
@@ -552,6 +747,86 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
   // 更新内容
   baseInfoElement.innerHTML = baseInfoHTML;
   
+  // 为 3A状态 标签添加鼠标悬浮事件
+  const statusTag = baseInfoElement.querySelector('.status-tag');
+  if (statusTag) {
+    console.log('✅ 找到 status-tag 元素，准备添加事件监听器');
+    
+    // 移除旧的事件监听器（如果存在）
+    const newStatusTag = statusTag.cloneNode(true);
+    statusTag.parentNode.replaceChild(newStatusTag, statusTag);
+    
+    // 保存 responseText 到 data 属性，确保事件处理器可以访问
+    newStatusTag.setAttribute('data-response-text', responseText || '');
+    
+    // 添加鼠标悬浮事件
+    newStatusTag.addEventListener('mouseenter', function(event) {
+      console.log('🖱️ 鼠标悬浮到 3A状态 标签');
+      
+      // 从 data 属性或闭包中获取 responseText
+      const responseTextData = this.getAttribute('data-response-text') || responseText;
+      console.log('📝 responseText 类型:', typeof responseTextData);
+      console.log('📝 responseText 长度:', responseTextData ? responseTextData.length : 0);
+      
+      if (!responseTextData) {
+        console.warn('⚠️ responseText 为空');
+        showTooltip(event, '未找到数据');
+        return;
+      }
+      
+      const apmStatusValues = getApmStatus(responseTextData);
+      console.log('📊 APM Status 值:', apmStatusValues);
+      
+      if (apmStatusValues && apmStatusValues.length > 0) {
+        // 使用第一个值解析状态
+        const firstValue = apmStatusValues[0];
+        console.log('📊 第一个值:', firstValue);
+        
+        let status = formatApmStatus(firstValue);
+        console.log('📝 解析后的状态:', status);
+        
+        // 检查值是否唯一
+        const isUnique = apmStatusValues.every(value => value === firstValue);
+        if (!isUnique) {
+          status += '【有变化】';
+        }
+        
+        console.log('✅ 准备显示悬浮窗');
+        showTooltip(event, status);
+      } else {
+        console.warn('⚠️ 未找到 APM Status 数据或数据为空');
+        showTooltip(event, '未找到 A NEARIN APM STATUS 数据');
+      }
+    });
+    
+    newStatusTag.addEventListener('mouseleave', () => {
+      console.log('🖱️ 鼠标离开 3A状态 标签');
+      hideTooltip();
+    });
+    
+    newStatusTag.addEventListener('mousemove', (event) => {
+      // 更新悬浮窗位置
+      const tooltip = document.querySelector('.apm-status-tooltip');
+      if (tooltip) {
+        const x = event.clientX + 10;
+        const y = event.clientY + 10;
+        tooltip.style.left = `${x}px`;
+        tooltip.style.top = `${y}px`;
+        
+        // 确保不超出视窗
+        const rect = tooltip.getBoundingClientRect();
+        if (rect.right > window.innerWidth) {
+          tooltip.style.left = `${event.clientX - rect.width - 10}px`;
+        }
+        if (rect.bottom > window.innerHeight) {
+          tooltip.style.top = `${event.clientY - rect.height - 10}px`;
+        }
+      }
+    });
+  } else {
+    console.warn('⚠️ 未找到 .status-tag 元素');
+  }
+  
   console.log('✅ Base Info 已更新:', { 
     channelProfile,
     channelProfileText: getChannelProfileDisplayText(channelProfile),
@@ -576,6 +851,7 @@ export default {
   getAudioProfile,
   getAudioProfileDisplayText,
   checkPrivileges,
+  getApmStatus,
   updateBaseInfo
 };
 
@@ -590,6 +866,7 @@ if (typeof window !== 'undefined') {
   window.getAudioProfile = getAudioProfile;
   window.getAudioProfileDisplayText = getAudioProfileDisplayText;
   window.checkPrivileges = checkPrivileges;
+  window.getApmStatus = getApmStatus;
   window.updateBaseInfo = updateBaseInfo;
 }
 
