@@ -756,6 +756,35 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
     const newStatusTag = statusTag.cloneNode(true);
     statusTag.parentNode.replaceChild(newStatusTag, statusTag);
     
+    // 1秒后检查 Hw3A 和 Aec 状态
+    setTimeout(() => {
+      console.log('⏱️ 1秒后检查 3A 状态');
+      
+      // 从 responseText 的 A NEARIN APM STATUS 中解析状态
+      let statusStr = '';
+      if (responseText) {
+        const apmStatusValues = getApmStatus(responseText);
+        if (apmStatusValues && apmStatusValues.length > 0) {
+          statusStr = formatApmStatus(apmStatusValues[0]);
+        }
+      }
+      // 解析状态文本，检查 Hw3A 和 Aec 状态
+      const hw3aStatusOff = statusStr.includes('Hw3A: Off');
+      const aecStatusOff = statusStr.includes('Aec: Off');
+      
+      console.log('🔍 Hw3A 状态:', hw3aStatusOff ? 'Off' : 'On');
+      console.log('🔍 Aec 状态:', aecStatusOff ? 'Off' : 'On');
+      
+      if (hw3aStatusOff && aecStatusOff) {
+        console.log('⚠️ Hw3A 和 Aec 都是 Off，修改标签背景色');
+        newStatusTag.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
+        newStatusTag.style.transition = 'background-color 0.3s ease';
+      } else {
+        console.log('✅ Hw3A 或 Aec 至少有一个是 On，保持原有背景色');
+        newStatusTag.style.backgroundColor = 'rgba(128, 128, 128, 0.5)';
+      }
+    }, 1000);
+    
     // 保存 responseText 到 data 属性，确保事件处理器可以访问
     newStatusTag.setAttribute('data-response-text', responseText || '');
     
@@ -793,15 +822,37 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
         
         console.log('✅ 准备显示悬浮窗');
         showTooltip(event, status);
+        
+      
       } else {
         console.warn('⚠️ 未找到 APM Status 数据或数据为空');
         showTooltip(event, '未找到 A NEARIN APM STATUS 数据');
       }
     });
     
-    newStatusTag.addEventListener('mouseleave', () => {
+    newStatusTag.addEventListener('mouseleave', function() {
       console.log('🖱️ 鼠标离开 3A状态 标签');
       hideTooltip();
+      
+      // 鼠标离开时根据 Hw3A 和 Aec 状态恢复背景色
+      const responseTextData = this.getAttribute('data-response-text') || responseText;
+      let statusStr = '';
+      if (responseTextData) {
+        const apmStatusValues = getApmStatus(responseTextData);
+        if (apmStatusValues && apmStatusValues.length > 0) {
+          statusStr = formatApmStatus(apmStatusValues[0]);
+        }
+      }
+      const hw3aStatusOff = statusStr.includes('Hw3A: Off');
+      const aecStatusOff = statusStr.includes('Aec: Off');
+      
+      if (hw3aStatusOff && aecStatusOff) {
+        console.log('🔄 恢复标签背景色（Hw3A 和 Aec 都是 Off）');
+        this.style.backgroundColor = 'rgba(255, 0, 0, 0.3)';
+      } else {
+        console.log('🔄 恢复标签背景色（正常状态）');
+        this.style.backgroundColor = 'rgba(128, 128, 128, 0.5)';
+      }
     });
     
     newStatusTag.addEventListener('mousemove', (event) => {
