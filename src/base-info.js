@@ -549,6 +549,89 @@ export const getApmStatus = (responseText) => {
 };
 
 /**
+ * 获取 Aec Configuration 数据
+ * @param {string} responseText - 响应文本（counters 数据）
+ * @returns {Array|null} Aec Configuration 值数组（过滤掉 null 值），如果未找到则返回 null
+ */
+export const getAecConfiguration = (responseText) => {
+  if (!responseText || typeof responseText !== 'string') {
+    console.warn('getAecConfiguration: responseText 不是有效的字符串');
+    return null;
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(responseText);
+  } catch (e) {
+    console.warn('getAecConfiguration: responseText 不是有效的 JSON');
+    return null;
+  }
+
+  const values = [];
+  
+  // 遍历数据结构查找 "Aec Configuration"
+  for (const item of Array.isArray(parsed) ? parsed : []) {
+    if (item && Array.isArray(item.data)) {
+      for (const counter of item.data) {
+        if (
+          counter &&
+          typeof counter.name === 'string' &&
+          counter.name.trim() === 'Aec Configuration' &&
+          Array.isArray(counter.data)
+        ) {
+          // 收集所有非null、非undefined的值（第二列）
+          for (let i = 0; i < counter.data.length; i++) {
+            const dataItem = counter.data[i];
+            const value = Array.isArray(dataItem) ? dataItem[1] : dataItem;
+            if (value !== null && value !== undefined) {
+              values.push(value);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (values.length === 0) {
+    console.warn('未找到 Aec Configuration 数据');
+    return null;
+  }
+  
+  return values;
+};
+
+/**
+ * 格式化 AEC Configuration 值（简化版本，使用全局 formatAEC 函数）
+ * @param {number} value - AEC Configuration 值
+ * @returns {string} 格式化的 HTML 字符串
+ */
+const formatAEC = (value) => {
+  if (value === null || value === undefined) {
+    return "暂无指标数据";
+  }
+  let text = "<br>";
+  const enabled = value >> 31 & 0x1;
+  if (enabled === 0) {
+    return "enabled: off";
+  }
+  const valueMap = {
+    "enabled": ["off", "on"][enabled],
+    "Search method": ["kCorrelation", "kMatchFilter", "kFilterCoeff"][(value >> 28) & 0x7],
+    "filter type": ["MDF", "SAF"][(value >> 26) & 0x3],
+    "filter length ms": (value >> 14) & 0xfff,
+    "nlp working mode": ["kTrad", "kDeep", "kFuse"][(value >> 11) & 0x7],
+    "nlp aggressiveness": (value >> 8) & 0x7,
+    "nlp size": Math.pow(2, ((value >> 4) & 0xf)),
+    "hop size": Math.pow(2, (value & 0xf)),
+  };
+
+  Object.keys(valueMap).map((key) => {
+    text += `${key}: ${valueMap[key]}<br>`;
+  });
+  return text;
+};
+
+/**
  * 创建并显示悬浮小窗
  * @param {MouseEvent} event - 鼠标事件
  * @param {string} content - 要显示的内容（HTML格式）
@@ -622,9 +705,6 @@ const showTooltip = (event, content) => {
     // 检查是否有其他元素遮挡
     const elementAtPoint = document.elementFromPoint(x + 10, y + 10);
     console.log('🔍 悬浮窗位置处的元素:', elementAtPoint);
-    if (elementAtPoint && elementAtPoint !== tooltip) {
-      console.warn('⚠️ 悬浮窗可能被其他元素遮挡:', elementAtPoint.className, elementAtPoint.tagName);
-    }
   });
 };
 
@@ -694,7 +774,7 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
   const privilegesText = eventsData ? checkPrivileges(eventsData) : null;
   
   // 构建基本信息内容（使用 ES6 模板字符串）
-  let baseInfoHTML = '<h4 style="display: inline-block; margin-right: 10px;">基本信息</h4><span class="status-tag">3A状态</span>';
+  let baseInfoHTML = '<h4 style="display: inline-block; margin-right: 10px;">基本信息</h4><span class="status-tag">3A状态</span><span class="aec-status-tag status-tag" style="margin-left: 10px;">AEC状态</span>';
   
   // 将 channelProfile 和 roleValues 信息合并到同一行显示
   const channelProfileText = channelProfile !== null ? getChannelProfileDisplayText(channelProfile) : null;
@@ -876,6 +956,131 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
     });
   } else {
     console.warn('⚠️ 未找到 .status-tag 元素');
+  }
+  
+  // 为 AEC状态 标签添加鼠标悬浮事件
+  const aecStatusTag = baseInfoElement.querySelector('.aec-status-tag');
+  if (aecStatusTag) {
+    console.log('✅ 找到 aec-status-tag 元素，准备添加事件监听器');
+    
+    // 移除旧的事件监听器（如果存在）
+    const newAecStatusTag = aecStatusTag.cloneNode(true);
+    aecStatusTag.parentNode.replaceChild(newAecStatusTag, aecStatusTag);
+    
+    // 1秒后检查 Aec Configuration 状态
+    setTimeout(() => {
+      console.log('⏱️ 1秒后检查 Aec Configuration 状态');
+      
+      // 检查 Aec Configuration，如果是 Off 则修改标签背景色
+      let aecConfigOff = false;
+      if (responseText) {
+        const aecConfigValues = getAecConfiguration(responseText);
+        console.log('📊 Aec Configuration 值:', aecConfigValues);
+        if (aecConfigValues && aecConfigValues.length > 0) {
+          // 检查 enabled 位（最高位），如果为 0 则视为 Off
+          const enabled = aecConfigValues[0] >> 31 & 0x1;
+          if (enabled === 0) {
+            aecConfigOff = true;
+          }
+        }
+      }
+      if (aecConfigOff) {
+        console.log('⚠️ Aec Configuration 是 Off，修改标签背景色');
+        newAecStatusTag.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
+        newAecStatusTag.style.transition = 'background-color 0.3s ease';
+      } else {
+        console.log('✅ Aec Configuration 是 On，保持原有背景色');
+        newAecStatusTag.style.backgroundColor = 'rgba(128, 128, 128, 0.5)';
+      }
+    }, 1000);
+    
+    // 保存 responseText 到 data 属性，确保事件处理器可以访问
+    newAecStatusTag.setAttribute('data-response-text', responseText || '');
+    
+    // 添加鼠标悬浮事件
+    newAecStatusTag.addEventListener('mouseenter', function(event) {
+      console.log('🖱️ 鼠标悬浮到 AEC状态 标签');
+      
+      // 从 data 属性或闭包中获取 responseText
+      const responseTextData = this.getAttribute('data-response-text') || responseText;
+      console.log('📝 responseText 类型:', typeof responseTextData);
+      console.log('📝 responseText 长度:', responseTextData ? responseTextData.length : 0);
+      
+      if (!responseTextData) {
+        console.warn('⚠️ responseText 为空');
+        showTooltip(event, '未找到数据');
+        return;
+      }
+      
+      const aecConfigValues = getAecConfiguration(responseTextData);
+      console.log('📊 AEC Configuration 值:', aecConfigValues);
+      
+      if (aecConfigValues && aecConfigValues.length > 0) {
+        // 使用第一个值解析状态
+        const firstValue = aecConfigValues[0];
+        console.log('📊 第一个值:', firstValue);
+        
+        let status = formatAEC(firstValue);
+        console.log('📝 解析后的状态:', status);
+        
+        // 检查值是否唯一
+        const isUnique = aecConfigValues.every(value => value === firstValue);
+        if (!isUnique) {
+          status += '<br>【有变化】';
+        }
+        
+        console.log('✅ 准备显示悬浮窗');
+        showTooltip(event, status);
+      } else {
+        console.warn('⚠️ 未找到 AEC Configuration 数据或数据为空');
+        showTooltip(event, '未找到 Aec Configuration 数据');
+      }
+    });
+    
+    newAecStatusTag.addEventListener('mouseleave', function() {
+      console.log('🖱️ 鼠标离开 AEC状态 标签');
+      hideTooltip();
+
+      // 鼠标离开时根据 Aec Configuration 状态恢复背景色
+      const responseTextData = this.getAttribute('data-response-text') || responseText;
+      let statusStr = '';
+      if (responseTextData) {
+        const aecConfigValues = getAecConfiguration(responseTextData);
+        if (aecConfigValues && aecConfigValues.length > 0) {
+          statusStr = formatAEC(aecConfigValues[0]);
+        }
+      }
+      const aecConfigOff = statusStr.includes('enabled: off');
+      if (aecConfigOff) {
+        console.log('🔄 恢复标签背景色（Aec Configuration 是 Off）');
+        this.style.backgroundColor = 'rgba(255, 0, 0, 0.3)';
+      } else {
+        console.log('🔄 恢复标签背景色（正常状态）');
+        this.style.backgroundColor = 'rgba(128, 128, 128, 0.5)';
+      }
+    });
+    
+    newAecStatusTag.addEventListener('mousemove', (event) => {
+      // 更新悬浮窗位置
+      const tooltip = document.querySelector('.apm-status-tooltip');
+      if (tooltip) {
+        const x = event.clientX + 10;
+        const y = event.clientY + 10;
+        tooltip.style.left = `${x}px`;
+        tooltip.style.top = `${y}px`;
+        
+        // 确保不超出视窗
+        const rect = tooltip.getBoundingClientRect();
+        if (rect.right > window.innerWidth) {
+          tooltip.style.left = `${event.clientX - rect.width - 10}px`;
+        }
+        if (rect.bottom > window.innerHeight) {
+          tooltip.style.top = `${event.clientY - rect.height - 10}px`;
+        }
+      }
+    });
+  } else {
+    console.warn('⚠️ 未找到 .aec-status-tag 元素');
   }
   
   console.log('✅ Base Info 已更新:', { 
