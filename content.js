@@ -560,6 +560,7 @@ async function checkPlayoutVolume(sid = null) {
   try {
     // 获取 counters 数据
     const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
+    const playoutVolumeModule = await import(chrome.runtime.getURL('src/metrics/playout-volume.js'));
 
     // 尝试从 window 获取 sid
     if (window.autoCheckSids && Array.isArray(window.autoCheckSids) && window.autoCheckSids.length > 0) {
@@ -587,40 +588,8 @@ async function checkPlayoutVolume(sid = null) {
       return;
     }
 
-    // 解析 counters 数据并查找 A PLAYOUT SIGNAL VOLUME
-    let parsed;
-    try {
-      parsed = JSON.parse(countersResponse);
-    } catch (e) {
-      console.warn('解析 counters 数据失败:', e);
-      return;
-    }
-
-    // 查找 A PLAYOUT SIGNAL VOLUME 数据
-    let playoutVolumeData = null;
-    for (const item of Array.isArray(parsed) ? parsed : []) {
-      if (item && Array.isArray(item.data)) {
-        for (const counter of item.data) {
-          if (
-            counter &&
-            typeof counter.name === 'string' &&
-            counter.name.trim().toUpperCase() === 'A PLAYOUT SIGNAL VOLUME' &&
-            Array.isArray(counter.data)
-          ) {
-            playoutVolumeData = {
-              name: counter.name,
-              counterId: counter.counter_id || counter.id,
-              data: counter.data.map(arr => ({
-                timestamp: arr[0],
-                value: arr[1]
-              }))
-            };
-            break;
-          }
-        }
-        if (playoutVolumeData) break;
-      }
-    }
+    // 获取 A PLAYOUT SIGNAL VOLUME 数据
+    const playoutVolumeData = playoutVolumeModule.getAPlayoutSignalVolumeData(countersResponse);
 
     if (!playoutVolumeData || !playoutVolumeData.data || playoutVolumeData.data.length === 0) {
       console.log('未找到 A PLAYOUT SIGNAL VOLUME 数据');
@@ -1149,6 +1118,22 @@ const AUDIO_METRICS_CONFIG = {
       isEcho: 0
     }
   },
+  'PLAYOUT_VOLUME': {
+    name: 'A PLAYOUT SIGNAL VOLUME',
+    displayName: '🔊 A PLAYOUT SIGNAL VOLUME 统计',
+    counterId: 8,
+    color: '#9b59b6',
+    backgroundColor: 'linear-gradient(135deg, #f4e6ff 0%, #e8ccff 100%)',
+    borderColor: '#9b59b6',
+    icon: '🔊',
+    unit: '',
+    description: '播放信号音量',
+    issueTypes: {
+      isNoSound: 1,
+      isLowLevel: 1,
+      isEcho: 0
+    }
+  },
   'CHAT_ENGINE_ERROR': {
     name: 'Chat Engine Error Code',
     displayName: '🚨 Chat Engine Error Code 统计',
@@ -1271,6 +1256,7 @@ function loadInlineIssueRules() {
       'Audio Signal Level Nearin': { isErrorCode: 0, isNoSound: 1, isLowLevel: 1, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
       'Audio Signal Level Nearout': { isErrorCode: 0, isNoSound: 1, isLowLevel: 1, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
       'A RECORD SIGNAL VOLUME': { isErrorCode: 0, isNoSound: 1, isLowLevel: 1, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
+      'A PLAYOUT SIGNAL VOLUME': { isErrorCode: 0, isNoSound: 1, isLowLevel: 1, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
       'Chat Engine Error Code': { isErrorCode: 1, isNoSound: 0, isLowLevel: 0, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
       'Audio Playback Frequency': { isErrorCode: 0, isNoSound: 0, isLowLevel: 0, isEcho: 0, isAudioStutter: 1, isBlack: 0 },
       'AUDIO DOWNLINK PULL 10MS DATA TIME': { isErrorCode: 0, isNoSound: 0, isLowLevel: 0, isEcho: 0, isAudioStutter: 1, isBlack: 0 }
@@ -1304,6 +1290,7 @@ function loadInlineIssueRules() {
       if (titleText.includes('Signal Level Nearout')) return 'Audio Signal Level Nearout';
       if (titleText.includes('Signal Level')) return 'Audio Signal Level Nearin';
       if (titleText.includes('Record Volume')) return 'A RECORD SIGNAL VOLUME';
+      if (titleText.includes('Playout Volume')) return 'A PLAYOUT SIGNAL VOLUME';
       if (titleText.includes('Error Code')) return 'Chat Engine Error Code';
       return null;
     };
@@ -2788,10 +2775,11 @@ async function showAudioMetricsAnalysis(countersResponse, eventsData = null) {
     showNotification('显示音频指标分析弹窗', 'info');
 
     // 动态导入 ES6 模块
-    const [aecDelayModule, signalLevelModule, recordVolumeModule, errorCodeModule] = await Promise.all([
+    const [aecDelayModule, signalLevelModule, recordVolumeModule, playoutVolumeModule, errorCodeModule] = await Promise.all([
       import(chrome.runtime.getURL('src/metrics/aec-delay.js')),
       import(chrome.runtime.getURL('src/metrics/signal-level.js')),
       import(chrome.runtime.getURL('src/metrics/record-volume.js')),
+      import(chrome.runtime.getURL('src/metrics/playout-volume.js')),
       import(chrome.runtime.getURL('src/metrics/error-code.js'))
     ]);
 
@@ -2802,6 +2790,7 @@ async function showAudioMetricsAnalysis(countersResponse, eventsData = null) {
     const signalLevelData = signalLevelModule.getAudioSignalLevelNearinData(countersResponse);
     const signalLevelNearoutData = signalLevelModule.getAudioSignalLevelNearoutData(countersResponse);
     const recordVolumeData = recordVolumeModule.getARecordSignalVolumeData(countersResponse);
+    const playoutVolumeData = playoutVolumeModule.getAPlayoutSignalVolumeData(countersResponse);
 
     // 获取 error code 数据
     let errorCodeData;
@@ -2817,14 +2806,14 @@ async function showAudioMetricsAnalysis(countersResponse, eventsData = null) {
     console.log('errorCodeData', errorCodeData);
 
     // 如果没有数据，显示提示信息
-    if (!aecDelayData && !signalLevelData && !signalLevelNearoutData && !recordVolumeData && !errorCodeData) {
+    if (!aecDelayData && !signalLevelData && !signalLevelNearoutData && !recordVolumeData && !playoutVolumeData && !errorCodeData) {
       showNotification('未找到音频分析数据', 'warning');
     }
 
     if (window.Chart) {
-      createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalLevelNearoutData, recordVolumeData, errorCodeData);
+      createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalLevelNearoutData, recordVolumeData, playoutVolumeData, errorCodeData);
     } else {
-      createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelNearoutData, recordVolumeData, errorCodeData, countersResponse);
+      createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelNearoutData, recordVolumeData, playoutVolumeData, errorCodeData, countersResponse);
     }
 
     // 图表创建后立即更新基本信息，传递 events 数据
@@ -2929,14 +2918,15 @@ function loadChartJsFallback() {
 }
 
 // 创建组合音频分析图表
-function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalLevelNearoutData, recordSignalVolumeData, errorCodeData) {
-  console.log('createCombinedAudioAnalysisChart', aecDelayData, signalLevelData, signalLevelNearoutData, recordSignalVolumeData, errorCodeData);
+function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalLevelNearoutData, recordSignalVolumeData, playoutSignalVolumeData, errorCodeData) {
+  console.log('createCombinedAudioAnalysisChart', aecDelayData, signalLevelData, signalLevelNearoutData, recordSignalVolumeData, playoutSignalVolumeData, errorCodeData);
 
   // 安全访问数据，避免 null/undefined 错误
   const safeAecDelayData = aecDelayData || { data: [] };
   const safeSignalLevelData = signalLevelData || { data: [] };
   const safeSignalLevelNearoutData = signalLevelNearoutData || { data: [] };
   const safeRecordSignalVolumeData = recordSignalVolumeData || { data: [] };
+  const safePlayoutSignalVolumeData = playoutSignalVolumeData || { data: [] };
   const safeErrorCodeData = errorCodeData || { data: [] };
 
   // 保存数据到全局变量，以便后续动态访问
@@ -2945,6 +2935,7 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalL
     'Audio Signal Level Nearin': signalLevelData,
     'Audio Signal Level Nearout': signalLevelNearoutData,
     'A RECORD SIGNAL VOLUME': recordSignalVolumeData,
+    'A PLAYOUT SIGNAL VOLUME': playoutSignalVolumeData,
     'Chat Engine Error Code': errorCodeData
   };
   
@@ -3106,6 +3097,31 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalL
               <span class="stat-value">${calculateChangeFrequency(safeRecordSignalVolumeData.data)}</span>
             </div>
           </div>
+          ${safePlayoutSignalVolumeData.data && safePlayoutSignalVolumeData.data.length > 0 ? `
+          <div class="stat-section">
+            <h4>🔊 A PLAYOUT SIGNAL VOLUME 统计</h4>
+            <div class="stat-item">
+              <span class="stat-label">数据点</span>
+              <span class="stat-value">${safePlayoutSignalVolumeData.data.length}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">平均音量</span>
+              <span class="stat-value">${calculateAverageDelay(safePlayoutSignalVolumeData.data)}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">最大音量</span>
+              <span class="stat-value">${calculateMaxDelay(safePlayoutSignalVolumeData.data)}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">变化次数</span>
+              <span class="stat-value">${calculateChangeCount(safePlayoutSignalVolumeData.data)}</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">变化频率</span>
+              <span class="stat-value">${calculateChangeFrequency(safePlayoutSignalVolumeData.data)}</span>
+            </div>
+          </div>
+          ` : ''}
         </div>
       </div>
     `;
@@ -4161,6 +4177,8 @@ function getChangeThreshold(metricName) {
       return 5;  // Signal Level Nearout 变化阈值
     case 'A RECORD SIGNAL VOLUME':
       return 8;  // Record Volume 变化阈值
+    case 'A PLAYOUT SIGNAL VOLUME':
+      return 8;  // Playout Volume 变化阈值
     default:
       return 5;   // 默认阈值
   }
@@ -4220,7 +4238,7 @@ function addNewMetric(metricKey, config) {
 // 使用全局作用域的函数：calculateAverageDelay, calculateMaxDelay, calculateChangeCount, calculateChangeFrequency
 
 // 创建组合备用图表（当Chart.js无法加载时使用）
-function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelNearoutData, recordSignalVolumeData, errorCodeData, responseText) {
+function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelNearoutData, recordSignalVolumeData, playoutSignalVolumeData, errorCodeData, responseText) {
   console.log('使用备用图表显示组合音频分析数据');
 
   // 提取音频卡顿相关指标数据
@@ -4232,6 +4250,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
   const safeSignalLevelData = signalLevelData || { data: [] };
   const safeSignalLevelNearoutData = signalLevelNearoutData || { data: [] };
   const safeRecordSignalVolumeData = recordSignalVolumeData || { data: [] };
+  const safePlayoutSignalVolumeData = playoutSignalVolumeData || { data: [] };
   const safeErrorCodeData = errorCodeData || { data: [] };
   const safeAudioPlaybackFrequencyData = audioPlaybackFrequencyData || { data: [] };
   const safeAudioDownlinkPullTimeData = audioDownlinkPullTimeData || { data: [] };
@@ -4242,6 +4261,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
     'Audio Signal Level Nearin': signalLevelData,
     'Audio Signal Level Nearout': signalLevelNearoutData,
     'A RECORD SIGNAL VOLUME': recordSignalVolumeData,
+    'A PLAYOUT SIGNAL VOLUME': playoutSignalVolumeData,
     'Chat Engine Error Code': errorCodeData,
     'Audio Playback Frequency': audioPlaybackFrequencyData,
     'AUDIO DOWNLINK PULL 10MS DATA TIME': audioDownlinkPullTimeData
@@ -4412,6 +4432,37 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
               </div>
             </div>
           </div>
+          ${safePlayoutSignalVolumeData.data && safePlayoutSignalVolumeData.data.length > 0 ? `
+          <div class="metric-row" data-metric="A PLAYOUT SIGNAL VOLUME">
+            <div class="metric-data-section">
+              <h4>🔊 Playout Volume 数据</h4>
+              <div class="data-table" id="playoutDataTable"></div>
+            </div>
+            <div class="metric-stats-section">
+              <h4>🔊 A PLAYOUT SIGNAL VOLUME 统计</h4>
+              <div class="stat-item">
+                <span class="stat-label">数据点</span>
+                <span class="stat-value">${safePlayoutSignalVolumeData.data.length}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">平均音量</span>
+                <span class="stat-value">${calculateAverageDelay(safePlayoutSignalVolumeData.data)}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">最大音量</span>
+                <span class="stat-value">${calculateMaxDelay(safePlayoutSignalVolumeData.data)}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">变化次数</span>
+                <span class="stat-value">${calculateChangeCount(safePlayoutSignalVolumeData.data)}</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">变化频率</span>
+                <span class="stat-value">${calculateChangeFrequency(safePlayoutSignalVolumeData.data)}</span>
+              </div>
+            </div>
+          </div>
+          ` : ''}
           ${safeErrorCodeData.data && safeErrorCodeData.data.length > 0 ? `
           <div class="metric-row" data-metric="Chat Engine Error Code">
             <div class="metric-full-section">
@@ -5298,6 +5349,9 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
     createDataTable(safeSignalLevelNearoutData.data, 'signalNearoutDataTable');
   }
   createDataTable(safeRecordSignalVolumeData.data, 'recordDataTable');
+  if (safePlayoutSignalVolumeData.data && safePlayoutSignalVolumeData.data.length > 0) {
+    createDataTable(safePlayoutSignalVolumeData.data, 'playoutDataTable');
+  }
   if (safeErrorCodeData.data && safeErrorCodeData.data.length > 0) {
     createErrorCodeTable(safeErrorCodeData, 'errorCodeDataTable');
   }
@@ -5759,6 +5813,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
     if (titleText.includes('Signal Level Nearout')) return 'Audio Signal Level Nearout';
     if (titleText.includes('Signal Level')) return 'Audio Signal Level Nearin';
     if (titleText.includes('Record Volume')) return 'A RECORD SIGNAL VOLUME';
+    if (titleText.includes('Playout Volume')) return 'A PLAYOUT SIGNAL VOLUME';
     return null;
   }
   
@@ -5931,7 +5986,7 @@ function createDataTable(data, containerId = 'dataTable') {
       <th>状态</th>
     `;
     valueLabel = '延迟 (ms)';
-  } else if (containerId === 'signalDataTable' || containerId === 'signalNearoutDataTable') {
+  } else if (containerId === 'signalDataTable' || containerId === 'signalNearoutDataTable' || containerId === 'playoutDataTable') {
     // nearIn nearout：【时间】【音量值】【状态】，音量值>85 状态为【正常】,否则【低】
     headerHTML = `
       <th>时间</th>
@@ -5986,7 +6041,7 @@ function createDataTable(data, containerId = 'dataTable') {
         // nearIn nearout：音量值>85 状态为【正常】,否则【低】
         status = value > 85 ? '正常' : '低';
         statusClass = value > 85 ? 'status-normal' : 'status-low';
-      } else if (containerId === 'recordDataTable') {
+      } else if (containerId === 'recordDataTable' || containerId === 'playoutDataTable') {
         // A RECORD SIGNAL VOLUME：音量值>100状态为高,<100 为【低】,=100【正常】
         if (value > 100) {
           status = '高';

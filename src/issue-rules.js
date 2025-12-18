@@ -81,6 +81,14 @@ const ISSUE_RULES = {
       isAudioStutter: 0,
       isBlack: 0
     },
+    'A PLAYOUT SIGNAL VOLUME': {
+      isErrorCode: 0,
+      isNoSound: 1,
+      isLowLevel: 1,
+      isEcho: 0,
+      isAudioStutter: 0,
+      isBlack: 0
+    },
     'Chat Engine Error Code': {
       isErrorCode: 1,
       isNoSound: 0,
@@ -263,6 +271,7 @@ function extractMetricNameFromTitle(titleText) {
   if (titleText.includes('Signal Level Nearout')) return 'Audio Signal Level Nearout';
   if (titleText.includes('Signal Level')) return 'Audio Signal Level Nearin';
   if (titleText.includes('Record Volume')) return 'A RECORD SIGNAL VOLUME';
+  if (titleText.includes('Playout Volume')) return 'A PLAYOUT SIGNAL VOLUME';
   if (titleText.includes('Error Code')) return 'Chat Engine Error Code';
   if (titleText.includes('Audio Playback Frequency')) return 'Audio Playback Frequency';
   if (titleText.includes('AUDIO DOWNLINK PULL 10MS DATA TIME')) return 'AUDIO DOWNLINK PULL 10MS DATA TIME';

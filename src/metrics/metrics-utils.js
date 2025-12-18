@@ -54,6 +54,18 @@ export const AUDIO_METRICS_CONFIG = {
     description: '录音音量',
     thresholds: { low: 20, medium: 50, high: 80 }
   },
+  'PLAYOUT_VOLUME': {
+    name: 'A PLAYOUT SIGNAL VOLUME',
+    displayName: '🔊 A PLAYOUT SIGNAL VOLUME 统计',
+    counterId: 8,
+    color: '#9b59b6',
+    backgroundColor: 'linear-gradient(135deg, #f4e6ff 0%, #e8ccff 100%)',
+    borderColor: '#9b59b6',
+    icon: '🔊',
+    unit: '%',
+    description: '播放音量',
+    thresholds: { low: 20, medium: 50, high: 80 }
+  },
   'ERROR_CODE': {
     name: 'Chat Engine Error Code',
     displayName: '⚠️ Chat Engine Error Code 统计',
@@ -148,6 +160,11 @@ export const generateMockMetricData = (metricName, dataPoints = 50) => {
       variation = 15;
       break;
     case 'A RECORD SIGNAL VOLUME':
+      valueRange = [5, 95];
+      baseValue = 50;
+      variation = 25;
+      break;
+    case 'A PLAYOUT SIGNAL VOLUME':
       valueRange = [5, 95];
       baseValue = 50;
       variation = 25;
@@ -262,6 +279,8 @@ export const getMetricThreshold = (metricName) => {
       return 5;  // Signal Level Nearout 变化阈值
     case 'A RECORD SIGNAL VOLUME':
       return 8;  // Record Volume 变化阈值
+    case 'A PLAYOUT SIGNAL VOLUME':
+      return 8;  // Playout Volume 变化阈值
     default:
       return 5;   // 默认阈值
   }

@@ -130,6 +130,7 @@ document.addEventListener('DOMContentLoaded', function() {
       'Audio Signal Level Nearin',
       'Audio Signal Level Nearout',
       'A RECORD SIGNAL VOLUME',
+      'A PLAYOUT SIGNAL VOLUME',
       'Chat Engine Error Code',
       'Audio Playback Frequency',
       'AUDIO DOWNLINK PULL 10MS DATA TIME'
@@ -186,6 +187,7 @@ document.addEventListener('DOMContentLoaded', function() {
       'Audio Signal Level Nearin': '音频信号强度检测',
       'Audio Signal Level Nearout': '音频输出信号强度检测',
       'A RECORD SIGNAL VOLUME': '录音信号音量检测',
+      'A PLAYOUT SIGNAL VOLUME': '播放信号音量检测',
       'Chat Engine Error Code': '聊天引擎错误码分析',
       'Audio Playback Frequency': '音频播放频率监控',
       'AUDIO DOWNLINK PULL 10MS DATA TIME': '音频下行数据拉取延迟'
