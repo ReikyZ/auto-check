@@ -272,6 +272,8 @@ window.updateIssueStatus = async function(issueType, isChecked) {
     
     console.log('checkDecodeErrors called with sid:', sid);
     await checkDecodeErrors(sid);
+    await checkRecordVolume(sid)
+    await checkPlayoutVolume(sid)
   }
 
   // 尝试更新图表显示（安全调用）
@@ -487,6 +489,284 @@ async function checkDecodeErrors(sid = null) {
   } catch (error) {
     console.error('检查解码错误时出错:', error);
   }
+}
+
+/**
+ * 检查 A RECORD SIGNAL VOLUME 数据中非 null 的最后一个值，如果是 0 则提示
+ */
+async function checkRecordVolume(sid = null) {
+  try {
+    // 获取 counters 数据
+    const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
+    const recordVolumeModule = await import(chrome.runtime.getURL('src/metrics/record-volume.js'));
+
+    // 尝试从 window 获取 sid
+    if (window.autoCheckSids && Array.isArray(window.autoCheckSids) && window.autoCheckSids.length > 0) {
+      sid = window.autoCheckSids[0];
+    }
+
+    let countersResponse = null;
+    if (sid) {
+      countersResponse = await dataUtil.getData('counters', sid);
+    }
+
+    // 如果还没有，尝试从 uid 获取
+    if (!countersResponse) {
+      const uidElements = document.querySelectorAll('.uid');
+      if (uidElements.length > 0) {
+        const uid = uidElements[0].textContent.trim();
+        if (uid) {
+          countersResponse = await dataUtil.getData('counters', uid);
+        }
+      }
+    }
+
+    if (!countersResponse) {
+      console.warn('未找到 counters 数据，跳过 A RECORD SIGNAL VOLUME 检查');
+      return;
+    }
+
+    // 获取 A RECORD SIGNAL VOLUME 数据
+    const recordVolumeData = recordVolumeModule.getARecordSignalVolumeData(countersResponse);
+
+    if (!recordVolumeData || !recordVolumeData.data || recordVolumeData.data.length === 0) {
+      console.log('未找到 A RECORD SIGNAL VOLUME 数据');
+      return;
+    }
+
+    // 找到非 null 的最后一个值
+    let lastNonNullValue = null;
+    for (let i = recordVolumeData.data.length - 1; i >= 0; i--) {
+      const point = recordVolumeData.data[i];
+      if (point && point.value !== null && point.value !== undefined) {
+        lastNonNullValue = point.value;
+        break;
+      }
+    }
+
+    // 如果最后一个非 null 值是 0，则提示
+    if (lastNonNullValue === 0) {
+      showVolumeWarningPopup('⚠️ 录制音量 recording signal 为 0');
+    }
+  } catch (error) {
+    console.error('检查 A RECORD SIGNAL VOLUME 时出错:', error);
+  }
+}
+
+/**
+ * 检查 A PLAYOUT SIGNAL VOLUME 数据中非 null 的最后一个值，如果是 0 则提示
+ */
+async function checkPlayoutVolume(sid = null) {
+  try {
+    // 获取 counters 数据
+    const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
+
+    // 尝试从 window 获取 sid
+    if (window.autoCheckSids && Array.isArray(window.autoCheckSids) && window.autoCheckSids.length > 0) {
+      sid = window.autoCheckSids[0];
+    }
+
+    let countersResponse = null;
+    if (sid) {
+      countersResponse = await dataUtil.getData('counters', sid);
+    }
+
+    // 如果还没有，尝试从 uid 获取
+    if (!countersResponse) {
+      const uidElements = document.querySelectorAll('.uid');
+      if (uidElements.length > 0) {
+        const uid = uidElements[0].textContent.trim();
+        if (uid) {
+          countersResponse = await dataUtil.getData('counters', uid);
+        }
+      }
+    }
+
+    if (!countersResponse) {
+      console.warn('未找到 counters 数据，跳过 A PLAYOUT SIGNAL VOLUME 检查');
+      return;
+    }
+
+    // 解析 counters 数据并查找 A PLAYOUT SIGNAL VOLUME
+    let parsed;
+    try {
+      parsed = JSON.parse(countersResponse);
+    } catch (e) {
+      console.warn('解析 counters 数据失败:', e);
+      return;
+    }
+
+    // 查找 A PLAYOUT SIGNAL VOLUME 数据
+    let playoutVolumeData = null;
+    for (const item of Array.isArray(parsed) ? parsed : []) {
+      if (item && Array.isArray(item.data)) {
+        for (const counter of item.data) {
+          if (
+            counter &&
+            typeof counter.name === 'string' &&
+            counter.name.trim().toUpperCase() === 'A PLAYOUT SIGNAL VOLUME' &&
+            Array.isArray(counter.data)
+          ) {
+            playoutVolumeData = {
+              name: counter.name,
+              counterId: counter.counter_id || counter.id,
+              data: counter.data.map(arr => ({
+                timestamp: arr[0],
+                value: arr[1]
+              }))
+            };
+            break;
+          }
+        }
+        if (playoutVolumeData) break;
+      }
+    }
+
+    if (!playoutVolumeData || !playoutVolumeData.data || playoutVolumeData.data.length === 0) {
+      console.log('未找到 A PLAYOUT SIGNAL VOLUME 数据');
+      return;
+    }
+
+    // 找到非 null 的最后一个值
+    let lastNonNullValue = null;
+    for (let i = playoutVolumeData.data.length - 1; i >= 0; i--) {
+      const point = playoutVolumeData.data[i];
+      if (point && point.value !== null && point.value !== undefined) {
+        lastNonNullValue = point.value;
+        break;
+      }
+    }
+
+    // 如果最后一个非 null 值是 0，则提示
+    if (lastNonNullValue === 0) {
+      showVolumeWarningPopup('⚠️ 播放音量 playout signal 为 0');
+    }
+  } catch (error) {
+    console.error('检查 A PLAYOUT SIGNAL VOLUME 时出错:', error);
+  }
+}
+
+/**
+ * 显示音量警告弹窗
+ * @param {string} message - 警告消息
+ */
+function showVolumeWarningPopup(message) {
+  // 创建弹窗容器
+  const popup = document.createElement('div');
+  popup.className = 'volume-warning-popup';
+  
+  popup.innerHTML = `
+    <div class="popup-header">
+      <h3>⚠️ 音量警告</h3>
+      <button class="close-popup" onclick="this.parentElement.parentElement.remove()">×</button>
+    </div>
+    <div class="popup-content">
+      <div class="warning-message">
+        ${message}
+      </div>
+    </div>
+  `;
+  
+  // 添加样式
+  popup.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80%;
+    max-width: 500px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
+    z-index: 10003;
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    animation: slideIn 0.3s ease-out;
+  `;
+  
+  // 添加CSS样式
+  const style = document.createElement('style');
+  if (!document.getElementById('volume-warning-popup-style')) {
+    style.id = 'volume-warning-popup-style';
+    style.textContent = `
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translate(-50%, -60%);
+        }
+        to {
+          opacity: 1;
+          transform: translate(-50%, -50%);
+        }
+      }
+      
+      .volume-warning-popup .popup-header {
+        background: linear-gradient(135deg, #ffa726 0%, #fb8c00 100%);
+        color: white;
+        padding: 15px 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      
+      .volume-warning-popup .popup-header h3 {
+        margin: 0;
+        font-size: 18px;
+        font-weight: 600;
+      }
+      
+      .volume-warning-popup .close-popup {
+        background: none;
+        border: none;
+        color: white;
+        font-size: 24px;
+        cursor: pointer;
+        padding: 0;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        transition: background-color 0.2s;
+      }
+      
+      .volume-warning-popup .close-popup:hover {
+        background-color: rgba(255, 255, 255, 0.2);
+      }
+      
+      .volume-warning-popup .popup-content {
+        padding: 20px;
+        max-height: 60vh;
+        overflow-y: auto;
+      }
+      
+      .volume-warning-popup .warning-message {
+        color: #333;
+        line-height: 1.8;
+        font-size: 14px;
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  // 添加到页面
+  document.body.appendChild(popup);
+  
+  // 点击关闭按钮
+  const closeBtn = popup.querySelector('.close-popup');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', () => {
+      popup.remove();
+    });
+  }
+  
+  // 点击外部区域关闭
+  popup.addEventListener('click', (e) => {
+    if (e.target === popup) {
+      popup.remove();
+    }
+  });
 }
 
 /**
