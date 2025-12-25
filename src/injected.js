@@ -196,6 +196,28 @@
                       });
                     } else {
                       console.log('[Injected] dataUtil sids 为空');
+                      // 当 dataUtil sids 为空时，检查 responseText 是否是包含多个 sid 的数组
+                      if (Array.isArray(jsonData) && jsonData.length > 0) {
+                        console.log(`[Injected] 检测到 responseText 是数组，包含 ${jsonData.length} 个子元素`);
+                        // 遍历数组中的每个子元素，提取 sid 并分别发送
+                        jsonData.forEach((item, index) => {
+                          if (item && typeof item === 'object' && item.sid) {
+                            const itemSid = item.sid;
+                            console.log(`[Injected] 提取子元素 [${index}] 的 sid: ${itemSid}`);
+                            // 为每个子元素单独发送数据
+                            sendToContentScript({
+                              sid: itemSid,
+                              url: fullUrl,
+                              data: xhr.responseText
+                            }, 'SAVE_COUNTERS_DATA');
+                            if (window.__autoCheckDebug) {
+                              console.log(`[Injected] 已发送保存 sid:${itemSid} counters_${itemSid} 的请求到 content script`);
+                            }
+                          } else {
+                            console.warn(`[Injected] 子元素 [${index}] 没有有效的 sid 字段`);
+                          }
+                        });
+                      }
                     }
                   } else {
                     console.warn('[Injected] 未能获取 dataUtil.getSids 方法');
