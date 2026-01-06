@@ -46,6 +46,9 @@ export const getChatEngineErrorData = (responseText, onDataUpdate = null) => {
     }
   }
 
+  // 对聚合的 errorMetricNames 按时间戳排序
+  allErrorData.sort((a, b) => a[0] - b[0]);
+
   // 获取所有唯一的时间戳
   const allTimestamps = new Set();
   allErrorData.forEach(([timestamp, value]) => {
