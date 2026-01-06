@@ -152,6 +152,377 @@ export const getRoleDisplayText = (roleValues) => {
 };
 
 /**
+ * 从 events 数据中提取 vosdk.vocs 事件的 localWanIp
+ * @param {string|Array} eventsData - events 数据（JSON 字符串或已解析的数组）
+ * @returns {Array|null} 去重后的 localWanIp 数组，如果未找到则返回 null
+ */
+export const getLocalWanIpFromVocs = (eventsData) => {
+  if (!eventsData) {
+    console.warn('getLocalWanIpFromVocs: eventsData 为空');
+    return null;
+  }
+
+  let parsed;
+  
+  // 如果 eventsData 是字符串，尝试解析
+  if (typeof eventsData === 'string') {
+    try {
+      parsed = JSON.parse(eventsData);
+    } catch (e) {
+      console.warn('getLocalWanIpFromVocs: eventsData 不是有效的 JSON', e);
+      return null;
+    }
+  } else if (Array.isArray(eventsData)) {
+    parsed = eventsData;
+  } else {
+    console.warn('getLocalWanIpFromVocs: eventsData 格式不正确，类型:', typeof eventsData);
+    return null;
+  }
+
+  if (!Array.isArray(parsed)) {
+    console.warn('getLocalWanIpFromVocs: 解析后的数据不是数组');
+    return null;
+  }
+
+  const ipSet = new Set();
+  
+  // 遍历 events 数组，查找 name 为 "vosdk.vocs" 的项
+  for (let i = 0; i < parsed.length; i++) {
+    const event = parsed[i];
+    if (event && event.details) {
+      const details = event.details;
+      if (details.name === 'vosdk.vocs' && details.localWanIp) {
+        const localWanIp = details.localWanIp;
+        console.log('getLocalWanIpFromVocs: 找到 localWanIp:', localWanIp);
+        ipSet.add(localWanIp);
+      }
+    }
+  }
+
+  if (ipSet.size === 0) {
+    console.warn('getLocalWanIpFromVocs: 未找到 vosdk.vocs 事件的 localWanIp 数据');
+    return null;
+  }
+  
+  // 转换为数组并返回
+  const ipArray = Array.from(ipSet);
+  console.log('getLocalWanIpFromVocs: 找到的去重 IP 地址:', ipArray);
+  return ipArray;
+};
+
+/**
+ * 获取 IP 地址显示文本
+ * @param {Array} ipArray - IP 地址数组
+ * @returns {string} IP 地址显示文本
+ */
+export const getIpDisplayText = (ipArray) => {
+  if (!ipArray || !Array.isArray(ipArray) || ipArray.length === 0) {
+    return null;
+  }
+  
+  if (ipArray.length === 1) {
+    return `IP: ${ipArray[0]}`;
+  } else {
+    return `IP: ${ipArray.join(', ')}`;
+  }
+};
+
+/**
+ * 获取 IP 地址的地理位置信息
+ * 通过 background script 发送请求以避免 CORS 问题
+ * @param {string} ipAddress - IP 地址
+ * @returns {Promise<Object|null>} 地理位置信息对象，如果失败则返回 null
+ */
+export const getIpLocationInfo = async (ipAddress) => {
+  if (!ipAddress || typeof ipAddress !== 'string') {
+    console.warn('getIpLocationInfo: IP 地址无效');
+    return null;
+  }
+
+  try {
+    console.log('🌐 请求 IP 地理位置信息:', ipAddress);
+    
+    // 参考 error-code.js 的实现方式，使用 chrome.runtime.sendMessage
+    const response = await new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(
+        {
+          type: 'FETCH_IP_INFO',
+          data: { ipAddress: ipAddress }
+        },
+        (response) => {
+          if (chrome.runtime.lastError) {
+            reject(new Error(chrome.runtime.lastError.message));
+            return;
+          }
+
+          if (response && response.success) {
+            resolve(response.data);
+          } else {
+            reject(new Error(response?.error || 'Unknown error'));
+          }
+        }
+      );
+    });
+
+    console.log('✅ 获取到 IP 地理位置信息:', response);
+    return response;
+  } catch (error) {
+    console.error('getIpLocationInfo: 获取 IP 地理位置信息失败', error);
+    return null;
+  }
+};
+
+/**
+ * 创建 IP 信息悬浮提示框
+ * @param {Object} locationData - 地理位置数据
+ * @returns {HTMLElement} 提示框元素
+ */
+const createIpInfoTooltip = (locationData) => {
+  // 移除已存在的提示框
+  const existingTooltip = document.querySelector('.ip-info-tooltip');
+  if (existingTooltip) {
+    existingTooltip.remove();
+  }
+
+  const tooltip = document.createElement('div');
+  tooltip.className = 'ip-info-tooltip';
+  
+  // 提取需要显示的字段
+  const country = locationData.country_name || '未知';
+  const region = locationData.region_name || '未知';
+  const city = locationData.city_name || '未知';
+  const line = locationData.line || '未知';
+  
+  // 运营商名称中文翻译映射表
+  const lineTranslationMap = {
+    'ChinaMobile': '中国移动',
+    'ChinaTelecom': '中国电信',
+    'ChinaUnicom': '中国联通',
+    'DRPENG': '鹏博士',
+    'ChinaNet': '中国电信',
+    'China169': '中国联通',
+    'CMNET': '中国移动',
+    'CERNET': '中国教育和科研计算机网',
+    'CSTNET': '中国科技网',
+    'UNICOM': '中国联通',
+    'CHINATELECOM': '中国电信',
+    'CHINAMOBILE': '中国移动'
+  };
+  
+  // 翻译 line 信息
+  const lineDisplay = lineTranslationMap[line] || line;
+  
+  // 构建提示框内容
+  let tooltipContent = '';
+  
+  // 显示国家、地区、城市信息
+  const locationText = [country, region, city].filter(item => item && item !== '未知').join(' - ');
+  if (locationText) {
+    tooltipContent += `
+      <div style="padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.2);">
+        <div style="font-weight: 600; margin-bottom: 4px;">📍 ${locationText}</div>
+      </div>
+    `;
+  }
+  
+  // 显示线路信息
+  if (line && line !== '未知') {
+    // 判断是否为三大运营商
+    const isMajorISP = line === 'ChinaMobile' || line === 'ChinaTelecom' || line === 'ChinaUnicom';
+    // 如果不是三大运营商，使用红色显示
+    const lineColor = isMajorISP ? 'rgba(255, 255, 255, 0.9)' : '#ff6b6b';
+    tooltipContent += `
+      <div style="padding: 8px 0;">
+        <div style="opacity: 0.9; color: ${lineColor};">🌐 ${lineDisplay}</div>
+      </div>
+    `;
+  }
+  
+  // 如果没有数据，显示默认消息
+  if (!tooltipContent) {
+    tooltipContent = `
+      <div style="padding: 8px 0;">
+        <div style="opacity: 0.9;">⚠️ 未找到地理位置信息</div>
+      </div>
+    `;
+  }
+  
+  tooltip.innerHTML = tooltipContent;
+  
+  // 设置样式
+  Object.assign(tooltip.style, {
+    position: 'fixed',
+    zIndex: '99999',
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    color: 'white',
+    padding: '12px 16px',
+    borderRadius: '8px',
+    fontSize: '13px',
+    lineHeight: '1.6',
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
+    maxWidth: '300px',
+    minWidth: '200px',
+    wordWrap: 'break-word',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    pointerEvents: 'none',
+    backdropFilter: 'blur(10px)'
+  });
+  
+  document.body.appendChild(tooltip);
+  return tooltip;
+};
+
+/**
+ * 显示 IP 信息悬浮提示框
+ * @param {MouseEvent} event - 鼠标事件
+ * @param {string} ipAddress - IP 地址
+ */
+export const showIpInfoTooltip = async (event, ipAddress) => {
+  if (!ipAddress) {
+    console.warn('showIpInfoTooltip: IP 地址为空');
+    return;
+  }
+
+  // 显示加载状态
+  const loadingTooltip = document.createElement('div');
+  loadingTooltip.className = 'ip-info-tooltip';
+  loadingTooltip.innerHTML = '<div style="padding: 8px;">加载中...</div>';
+  Object.assign(loadingTooltip.style, {
+    position: 'fixed',
+    zIndex: '99999',
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    color: 'white',
+    padding: '8px 12px',
+    borderRadius: '6px',
+    fontSize: '12px',
+    left: `${event.clientX + 10}px`,
+    top: `${event.clientY - 30}px`,
+    pointerEvents: 'none'
+  });
+  document.body.appendChild(loadingTooltip);
+
+  try {
+    // 获取地理位置信息
+    const locationData = await getIpLocationInfo(ipAddress);
+    
+    // 移除加载提示框
+    loadingTooltip.remove();
+    
+    if (!locationData) {
+      // 显示错误提示
+      const errorTooltip = document.createElement('div');
+      errorTooltip.className = 'ip-info-tooltip';
+      errorTooltip.innerHTML = '<div style="padding: 8px; color: #ff6b6b;">无法获取地理位置信息</div>';
+      Object.assign(errorTooltip.style, {
+        position: 'fixed',
+        zIndex: '99999',
+        backgroundColor: 'rgba(0, 0, 0, 0.9)',
+        color: 'white',
+        padding: '8px 12px',
+        borderRadius: '6px',
+        fontSize: '12px',
+        left: `${event.clientX + 10}px`,
+        top: `${event.clientY - 30}px`,
+        pointerEvents: 'none'
+      });
+      document.body.appendChild(errorTooltip);
+      
+      // 3秒后自动移除
+      setTimeout(() => {
+        errorTooltip.remove();
+      }, 3000);
+      return;
+    }
+
+    // 创建并显示提示框
+    const tooltip = createIpInfoTooltip(locationData);
+    
+    // 定位提示框
+    requestAnimationFrame(() => {
+      const rect = tooltip.getBoundingClientRect();
+      let x = event.clientX + 10;
+      let y = event.clientY - rect.height - 10;
+      
+      // 确保不超出视窗
+      if (x + rect.width > window.innerWidth) {
+        x = Math.max(10, event.clientX - rect.width - 10);
+      }
+      if (y < 0) {
+        y = event.clientY + 10;
+      }
+      
+      tooltip.style.left = `${x}px`;
+      tooltip.style.top = `${y}px`;
+    });
+  } catch (error) {
+    console.error('showIpInfoTooltip: 显示 IP 信息失败', error);
+    loadingTooltip.remove();
+  }
+};
+
+/**
+ * 隐藏 IP 信息悬浮提示框
+ */
+export const hideIpInfoTooltip = () => {
+  const tooltip = document.querySelector('.ip-info-tooltip');
+  if (tooltip) {
+    tooltip.remove();
+  }
+};
+
+/**
+ * 为页面中的 IP 地址元素设置悬浮事件
+ */
+export const setupIpHoverEvents = () => {
+  // 查找所有 IP 地址元素（通过 class 或 data 属性）
+  const ipElements = document.querySelectorAll('.ip-address-item, [data-ip-address]');
+  
+  ipElements.forEach(element => {
+    // 移除旧的事件监听器（通过克隆节点）
+    const newElement = element.cloneNode(true);
+    element.parentNode.replaceChild(newElement, element);
+    
+    // 获取 IP 地址
+    const ipAddress = newElement.getAttribute('data-ip-address') || 
+                      newElement.textContent.match(/\d+\.\d+\.\d+\.\d+/)?.[0];
+    
+    if (!ipAddress) {
+      console.warn('setupIpHoverEvents: 未找到 IP 地址');
+      return;
+    }
+    
+    // 添加鼠标悬浮事件
+    let hoverTimeout;
+    let isHovering = false;
+    
+    newElement.addEventListener('mouseenter', (event) => {
+      isHovering = true;
+      // 延迟 300ms 后显示提示框，避免鼠标快速划过时频繁请求
+      hoverTimeout = setTimeout(() => {
+        if (isHovering) {
+          showIpInfoTooltip(event, ipAddress);
+        }
+      }, 300);
+    });
+    
+    newElement.addEventListener('mouseleave', () => {
+      isHovering = false;
+      if (hoverTimeout) {
+        clearTimeout(hoverTimeout);
+      }
+      hideIpInfoTooltip();
+    });
+    
+    // 添加样式，使其看起来可点击
+    newElement.style.cursor = 'pointer';
+    newElement.style.textDecoration = 'underline';
+    newElement.style.color = 'white';
+  });
+  
+  console.log(`✅ 已为 ${ipElements.length} 个 IP 地址元素设置悬浮事件`);
+};
+
+/**
  * 获取 SDK Mute Status Bit Based 值
  * @param {string} responseText - 响应文本
  * @returns {Array|null} mute 状态值数组
@@ -773,14 +1144,18 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
   // 检查用户权限（从 events 数据中获取）
   const privilegesText = eventsData ? checkPrivileges(eventsData) : null;
   
+  // 提取 localWanIp 信息（从 events 数据中获取）
+  const localWanIpArray = eventsData ? getLocalWanIpFromVocs(eventsData) : null;
+  
   // 构建基本信息内容（使用 ES6 模板字符串）
   let baseInfoHTML = '<h4 style="display: inline-block; margin-right: 10px;">基本信息</h4><span class="status-tag">3A状态</span><span class="aec-status-tag status-tag" style="margin-left: 10px;">AEC状态</span>';
   
   // 将 channelProfile 和 roleValues 信息合并到同一行显示
   const channelProfileText = channelProfile !== null ? getChannelProfileDisplayText(channelProfile) : null;
   const roleText = roleValues !== null ? getRoleDisplayText(roleValues) : null;
+  const ipText = localWanIpArray !== null ? getIpDisplayText(localWanIpArray) : null;
   
-  if (channelProfileText !== null || roleText !== null) {
+  if (channelProfileText !== null || roleText !== null || ipText !== null) {
     let combinedText = '';
     if (channelProfileText !== null) {
       combinedText += `📡 ${channelProfileText}`;
@@ -793,6 +1168,18 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
     } else {
       if (combinedText) combinedText += ' | ';
       combinedText += '⚠️ 未找到角色信息';
+    }
+    if (ipText !== null) {
+      if (combinedText) combinedText += ' | ';
+      // 为每个 IP 地址创建可悬浮的元素
+      if (localWanIpArray && localWanIpArray.length > 0) {
+        const ipElements = localWanIpArray.map(ip => 
+          `<span class="ip-address-item" data-ip-address="${ip}" style="cursor: pointer; text-decoration: underline; color: white; margin: 0 2px;">${ip}</span>`
+        ).join(', ');
+        combinedText += `🌐 IP: ${ipElements}`;
+      } else {
+        combinedText += `🌐 ${ipText}`;
+      }
     }
     baseInfoHTML += `<div class="info-item">${combinedText}</div>`;
   } else {
@@ -1083,6 +1470,14 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
     console.warn('⚠️ 未找到 .aec-status-tag 元素');
   }
   
+  // 为 IP 地址元素设置悬浮事件
+  if (localWanIpArray && localWanIpArray.length > 0) {
+    // 延迟执行，确保 DOM 已更新
+    setTimeout(() => {
+      setupIpHoverEvents();
+    }, 100);
+  }
+  
   console.log('✅ Base Info 已更新:', { 
     channelProfile,
     channelProfileText: getChannelProfileDisplayText(channelProfile),
@@ -1092,7 +1487,8 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
     muteText: getMuteStatusDisplayText(muteStatusValues),
     audioProfileValues,
     audioProfileText: getAudioProfileDisplayText(audioProfileValues),
-    privilegesText
+    privilegesText,
+    localWanIpArray
   });
 };
 
@@ -1108,6 +1504,12 @@ export default {
   getAudioProfileDisplayText,
   checkPrivileges,
   getApmStatus,
+  getLocalWanIpFromVocs,
+  getIpDisplayText,
+  getIpLocationInfo,
+  showIpInfoTooltip,
+  hideIpInfoTooltip,
+  setupIpHoverEvents,
   updateBaseInfo
 };
 
@@ -1123,6 +1525,12 @@ if (typeof window !== 'undefined') {
   window.getAudioProfileDisplayText = getAudioProfileDisplayText;
   window.checkPrivileges = checkPrivileges;
   window.getApmStatus = getApmStatus;
+  window.getLocalWanIpFromVocs = getLocalWanIpFromVocs;
+  window.getIpDisplayText = getIpDisplayText;
+  window.getIpLocationInfo = getIpLocationInfo;
+  window.showIpInfoTooltip = showIpInfoTooltip;
+  window.hideIpInfoTooltip = hideIpInfoTooltip;
+  window.setupIpHoverEvents = setupIpHoverEvents;
   window.updateBaseInfo = updateBaseInfo;
 }
 

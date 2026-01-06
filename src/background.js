@@ -74,12 +74,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     case 'START_NETWORK_MONITORING':
       startNetworkMonitoring();
       sendResponse({ success: true, message: '网络监听已启动' });
-      break;
+      return true;
       
     case 'STOP_NETWORK_MONITORING':
       stopNetworkMonitoring();
       sendResponse({ success: true, message: '网络监听已停止' });
-      break;
+      return true;
       
     case 'GET_NETWORK_REQUESTS':
       sendResponse({ 
@@ -87,7 +87,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         requests: networkRequests,
         count: networkRequests.length 
       });
-      break;
+      return true;
       
     case 'GET_COUNTERS_DATA':
       const countersData = extractCountersData(networkRequests);
@@ -95,13 +95,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         success: true, 
         counters: countersData 
       });
-      break;
+      return true;
       
     default:
-      sendResponse({ success: false, message: '未知消息类型' });
+      // 不处理未知消息类型，让其他监听器处理
+      return false;
   }
-  
-  return true; // 保持消息通道开放
 });
 
 // 提取counters数据
