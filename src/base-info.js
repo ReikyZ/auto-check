@@ -293,22 +293,6 @@ const createIpInfoTooltip = (locationData) => {
   const city = locationData.city_name || '未知';
   const line = locationData.line || '未知';
   
-  // 运营商名称中文翻译映射表
-  const lineTranslationMap = {
-    'ChinaMobile': '中国移动',
-    'ChinaTelecom': '中国电信',
-    'ChinaUnicom': '中国联通',
-    'DRPENG': '鹏博士',
-    'ChinaNet': '中国电信',
-    'China169': '中国联通',
-    'CMNET': '中国移动',
-    'CERNET': '中国教育和科研计算机网',
-    'CSTNET': '中国科技网',
-    'UNICOM': '中国联通',
-    'CHINATELECOM': '中国电信',
-    'CHINAMOBILE': '中国移动'
-  };
-  
   // 翻译 line 信息
   const lineDisplay = lineTranslationMap[line] || line;
   
@@ -328,9 +312,9 @@ const createIpInfoTooltip = (locationData) => {
   // 显示线路信息
   if (line && line !== '未知') {
     // 判断是否为三大运营商
-    const isMajorISP = line === 'ChinaMobile' || line === 'ChinaTelecom' || line === 'ChinaUnicom';
+    const isMajor = isMajorISP(line);
     // 如果不是三大运营商，使用红色显示
-    const lineColor = isMajorISP ? 'rgba(255, 255, 255, 0.9)' : '#ff6b6b';
+    const lineColor = isMajor ? 'rgba(255, 255, 255, 0.9)' : '#ff6b6b';
     tooltipContent += `
       <div style="padding: 8px 0;">
         <div style="opacity: 0.9; color: ${lineColor};">🌐 ${lineDisplay}</div>
@@ -520,6 +504,71 @@ export const setupIpHoverEvents = () => {
   });
   
   console.log(`✅ 已为 ${ipElements.length} 个 IP 地址元素设置悬浮事件`);
+};
+
+/**
+ * 运营商名称中文翻译映射表
+ */
+const lineTranslationMap = {
+  'ChinaMobile': '中国移动',
+  'ChinaTelecom': '中国电信',
+  'ChinaUnicom': '中国联通',
+  'DRPENG': '鹏博士',
+  'ChinaNet': '中国电信',
+  'China169': '中国联通',
+  'CMNET': '中国移动',
+  'CERNET': '中国教育和科研计算机网',
+  'CSTNET': '中国科技网',
+  'UNICOM': '中国联通',
+  'CHINATELECOM': '中国电信',
+  'CHINAMOBILE': '中国移动'
+};
+
+/**
+ * 判断是否为三大运营商
+ */
+const isMajorISP = (line) => {
+  return line === 'ChinaMobile' || line === 'ChinaTelecom' || line === 'ChinaUnicom';
+};
+
+/**
+ * 更新 IP 显示，添加非三大运营商的 line 信息
+ */
+const updateIpDisplayWithLine = async () => {
+  const ipElements = document.querySelectorAll('.ip-address-item[data-ip-address]');
+  
+  for (const ipElement of ipElements) {
+    const ipAddress = ipElement.getAttribute('data-ip-address');
+    if (!ipAddress) continue;
+    
+    // 检查是否已经添加了 line 信息
+    if (ipElement.nextSibling && ipElement.nextSibling.classList && ipElement.nextSibling.classList.contains('ip-line-info')) {
+      continue; // 已经添加过了，跳过
+    }
+    
+    try {
+      // 获取 IP 地理位置信息
+      const locationData = await getIpLocationInfo(ipAddress);
+      if (locationData && locationData.line) {
+        const line = locationData.line;
+        
+        // 如果不是三大运营商，在 IP 后面添加红色的 line 信息
+        if (!isMajorISP(line)) {
+          const lineDisplay = lineTranslationMap[line] || line;
+          const lineSpan = document.createElement('span');
+          lineSpan.className = 'ip-line-info';
+          lineSpan.textContent = ` (${lineDisplay})`;
+          lineSpan.style.color = '#ff6b6b';
+          lineSpan.style.marginLeft = '4px';
+          
+          // 在 IP 元素后面插入 line 信息
+          ipElement.parentNode.insertBefore(lineSpan, ipElement.nextSibling);
+        }
+      }
+    } catch (error) {
+      console.warn(`获取 IP ${ipAddress} 的 line 信息失败:`, error);
+    }
+  }
 };
 
 /**
@@ -1475,6 +1524,8 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
     // 延迟执行，确保 DOM 已更新
     setTimeout(() => {
       setupIpHoverEvents();
+      // 更新 IP 显示，添加非三大运营商的 line 信息
+      updateIpDisplayWithLine();
     }, 100);
   }
   
