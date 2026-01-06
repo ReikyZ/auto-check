@@ -781,6 +781,287 @@ export const getAudioProfileDisplayText = (audioProfileValues) => {
 };
 
 /**
+ * 获取 Video Profile 信息
+ * @param {string|Array} eventsData - events 数据（JSON 字符串或已解析的数组）
+ * @returns {Object|null} VideoProfile 信息对象，如果未找到则返回 null
+ */
+export const getVideoProfile = (eventsData) => {
+  if (!eventsData) {
+    console.warn('getVideoProfile: eventsData 为空');
+    return null;
+  }
+
+  let parsed;
+  
+  // 如果 eventsData 是字符串，尝试解析
+  if (typeof eventsData === 'string') {
+    try {
+      parsed = JSON.parse(eventsData);
+    } catch (e) {
+      console.warn('getVideoProfile: eventsData 不是有效的 JSON', e);
+      return null;
+    }
+  } else if (Array.isArray(eventsData)) {
+    parsed = eventsData;
+  } else {
+    console.warn('getVideoProfile: eventsData 格式不正确，类型:', typeof eventsData);
+    return null;
+  }
+
+  if (!Array.isArray(parsed)) {
+    console.warn('getVideoProfile: 解析后的数据不是数组');
+    return null;
+  }
+
+  // 遍历 events 数组，查找 name 为 "vosdk.VideoProfile" 和 "vosdk.videoProfileLow" 的项
+  // 从后往前查找，获取最新的数据
+  let videoProfile = null;
+  let videoProfileLow = null;
+  
+  for (let i = parsed.length - 1; i >= 0; i--) {
+    const event = parsed[i];
+    if (event && event.details) {
+      const details = event.details;
+      if (details.name === 'vosdk.VideoProfile' && !videoProfile) {
+        videoProfile = {
+          width: details.width,
+          height: details.height,
+          frameRate: details.frameRate,
+          bitrate: details.bitrate
+        };
+        console.log('getVideoProfile: 找到 VideoProfile 数据:', videoProfile);
+      } else if (details.name === 'vosdk.videoProfileLow' && !videoProfileLow) {
+        videoProfileLow = {
+          width: details.width,
+          height: details.height,
+          frameRate: details.frameRate,
+          bitrate: details.bitrate
+        };
+        console.log('getVideoProfile: 找到 videoProfileLow 数据:', videoProfileLow);
+      }
+    }
+  }
+
+  if (!videoProfile && !videoProfileLow) {
+    console.warn('getVideoProfile: 未找到 VideoProfile 数据');
+    return null;
+  }
+
+  return {
+    videoProfile,
+    videoProfileLow
+  };
+};
+
+/**
+ * 获取 Video Profile 显示文本
+ * @param {Object} videoProfileData - VideoProfile 信息对象，包含 videoProfile 和 videoProfileLow
+ * @returns {string} 显示文本
+ */
+export const getVideoProfileDisplayText = (videoProfileData) => {
+  if (!videoProfileData) {
+    return '未知';
+  }
+
+  let text = '';
+  
+  // 显示主视频 profile
+  if (videoProfileData.videoProfile) {
+    const p = videoProfileData.videoProfile;
+    const width = p.width !== undefined ? p.width : '未知';
+    const height = p.height !== undefined ? p.height : '未知';
+    const frameRate = p.frameRate !== undefined ? p.frameRate : '未知';
+    const bitrate = p.bitrate !== undefined ? p.bitrate : '未知';
+    text += `视频 profile 为${width}*${height} fps ${frameRate} bitrate ${bitrate}`;
+  }
+  
+  // 显示低码率视频 profile
+  if (videoProfileData.videoProfileLow) {
+    if (text) {
+      text += ' | ';
+    }
+    const p = videoProfileData.videoProfileLow;
+    const width = p.width !== undefined ? p.width : '未知';
+    const height = p.height !== undefined ? p.height : '未知';
+    const frameRate = p.frameRate !== undefined ? p.frameRate : '未知';
+    const bitrate = p.bitrate !== undefined ? p.bitrate : '未知';
+    text += `低码率 profile 为${width}*${height} fps ${frameRate} bitrate ${bitrate}`;
+  }
+
+  return text || '未知';
+};
+
+/**
+ * 获取摄像头信息
+ * @param {string|Array} eventsData - events 数据（JSON 字符串或已解析的数组）
+ * @returns {Array|null} 摄像头信息数组，如果未找到则返回 null
+ */
+export const getCameraInfo = (eventsData) => {
+  if (!eventsData) {
+    console.warn('getCameraInfo: eventsData 为空');
+    return null;
+  }
+
+  let parsed;
+  
+  // 如果 eventsData 是字符串，尝试解析
+  if (typeof eventsData === 'string') {
+    try {
+      parsed = JSON.parse(eventsData);
+    } catch (e) {
+      console.warn('getCameraInfo: eventsData 不是有效的 JSON', e);
+      return null;
+    }
+  } else if (Array.isArray(eventsData)) {
+    parsed = eventsData;
+  } else {
+    console.warn('getCameraInfo: eventsData 格式不正确，类型:', typeof eventsData);
+    return null;
+  }
+
+  if (!Array.isArray(parsed)) {
+    console.warn('getCameraInfo: 解析后的数据不是数组');
+    return null;
+  }
+
+  // 遍历 events 数组，查找 name 为 "vosdk.cameraInfo" 的项
+  // 从后往前查找，获取最新的数据
+  for (let i = parsed.length - 1; i >= 0; i--) {
+    const event = parsed[i];
+    if (event && event.details) {
+      const details = event.details;
+      if (details.name === 'vosdk.cameraInfo' && Array.isArray(details.items)) {
+        console.log('getCameraInfo: 找到 cameraInfo 数据:', details.items);
+        return details.items;
+      }
+    }
+  }
+
+  console.warn('getCameraInfo: 未找到 cameraInfo 数据');
+  return null;
+};
+
+/**
+ * 格式化摄像头信息显示文本
+ * @param {Array} cameraItems - 摄像头信息数组
+ * @returns {string} 格式化的 HTML 文本
+ */
+export const formatCameraInfo = (cameraItems) => {
+  if (!cameraItems || !Array.isArray(cameraItems) || cameraItems.length === 0) {
+    return '未找到摄像头信息';
+  }
+
+  let text = '';
+  cameraItems.forEach((item, index) => {
+    if (index > 0) {
+      text += '<br>';
+    }
+    const isUsing = item.bUse === 1;
+    const status = isUsing ? '<span style="color: #4caf50; font-weight: bold;">【使用中】</span>' : '';
+    text += `${item.friendName || '未知摄像头'}${status}`;
+  });
+
+  return text;
+};
+
+/**
+ * 获取音频设备状态变化信息
+ * @param {string|Array} eventsData - events 数据（JSON 字符串或已解析的数组）
+ * @returns {Array|null} 设备状态变化信息数组，如果未找到则返回 null
+ */
+export const getDeviceStatChange = (eventsData) => {
+  if (!eventsData) {
+    console.warn('getDeviceStatChange: eventsData 为空');
+    return null;
+  }
+
+  let parsed;
+  
+  // 如果 eventsData 是字符串，尝试解析
+  if (typeof eventsData === 'string') {
+    try {
+      parsed = JSON.parse(eventsData);
+    } catch (e) {
+      console.warn('getDeviceStatChange: eventsData 不是有效的 JSON', e);
+      return null;
+    }
+  } else if (Array.isArray(eventsData)) {
+    parsed = eventsData;
+  } else {
+    console.warn('getDeviceStatChange: eventsData 格式不正确，类型:', typeof eventsData);
+    return null;
+  }
+
+  if (!Array.isArray(parsed)) {
+    console.warn('getDeviceStatChange: 解析后的数据不是数组');
+    return null;
+  }
+
+  // 遍历 events 数组，查找所有 name 为 "vosdk.DeviceStatChange" 的项
+  const deviceStatChanges = [];
+  for (let i = parsed.length - 1; i >= 0; i--) {
+    const event = parsed[i];
+    if (event && event.details) {
+      const details = event.details;
+      if (details.name === 'vosdk.DeviceStatChange') {
+        deviceStatChanges.push({
+          deviceName: details.deviceName,
+          ts: details.ts,
+          sentTs: details.sentTs,
+          receivedTs: details.receivedTs
+        });
+      }
+    }
+  }
+
+  if (deviceStatChanges.length === 0) {
+    console.warn('getDeviceStatChange: 未找到 DeviceStatChange 数据');
+    return null;
+  }
+
+  console.log('getDeviceStatChange: 找到 DeviceStatChange 数据:', deviceStatChanges);
+  // 按时间倒序排列（最新的在前）
+  return deviceStatChanges.reverse();
+};
+
+/**
+ * 格式化音频设备状态变化显示文本
+ * @param {Array} deviceStatChanges - 设备状态变化信息数组
+ * @returns {string} 格式化的 HTML 文本
+ */
+export const formatDeviceStatChange = (deviceStatChanges) => {
+  if (!deviceStatChanges || !Array.isArray(deviceStatChanges) || deviceStatChanges.length === 0) {
+    return '未找到音频设备状态变化信息';
+  }
+
+  let text = '';
+  deviceStatChanges.forEach((item, index) => {
+    if (index > 0) {
+      text += '<br><br>';
+    }
+    const deviceName = item.deviceName || '未知设备';
+    const timestamp = item.ts || item.receivedTs || item.sentTs || '未知时间';
+    // 将时间戳转换为可读格式（毫秒转日期时间）
+    let timeStr = '未知时间';
+    if (timestamp && typeof timestamp === 'number') {
+      const date = new Date(timestamp);
+      timeStr = date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      });
+    }
+    text += `<strong>${deviceName}</strong><br><span style="color: #999; font-size: 11px;">时间: ${timeStr}</span>`;
+  });
+
+  return text;
+};
+
+/**
  * 检查用户权限
  * @param {string|Array} eventsData - events 数据（JSON 字符串或已解析的数组）
  * @returns {string|null} 权限状态文本，如果未找到则返回 null
@@ -1197,7 +1478,7 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
   const localWanIpArray = eventsData ? getLocalWanIpFromVocs(eventsData) : null;
   
   // 构建基本信息内容（使用 ES6 模板字符串）
-  let baseInfoHTML = '<h4 style="display: inline-block; margin-right: 10px;">基本信息</h4><span class="status-tag">3A状态</span><span class="aec-status-tag status-tag" style="margin-left: 10px;">AEC状态</span>';
+  let baseInfoHTML = '<h4 style="display: inline-block; margin-right: 10px;">基本信息</h4><span class="status-tag">3A状态</span><span class="aec-status-tag status-tag" style="margin-left: 10px;">AEC状态</span><span class="camera-status-tag status-tag" style="margin-left: 10px;">摄像头状态</span><span class="audio-device-status-tag status-tag" style="margin-left: 10px;">音频状态</span>';
   
   // 将 channelProfile 和 roleValues 信息合并到同一行显示
   const channelProfileText = channelProfile !== null ? getChannelProfileDisplayText(channelProfile) : null;
@@ -1248,6 +1529,31 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
     baseInfoHTML += `<div class="info-item">🎵 ${audioProfileText}</div>`;
   } else {
     baseInfoHTML += '<div class="info-item">⚠️ 未找到 audio profile 信息</div>';
+  }
+  
+  // 提取视频 profile 信息（从 events 数据中获取）
+  // 如果 eventsData 为空，尝试从其他地方获取
+  let finalEventsData = eventsData;
+  if (!finalEventsData) {
+    // 尝试从 window 中获取 eventsData（如果之前保存过）
+    if (window.currentEventsData) {
+      finalEventsData = window.currentEventsData;
+      console.log('🔍 updateBaseInfo: 从 window.currentEventsData 获取 eventsData');
+    } else {
+      // 尝试从 dataUtil 获取（异步，这里先不处理，因为 updateBaseInfo 是同步函数）
+      console.warn('⚠️ updateBaseInfo: eventsData 为空，无法获取视频 profile');
+    }
+  }
+  
+  const videoProfile = finalEventsData ? getVideoProfile(finalEventsData) : null;
+  console.log('🔍 updateBaseInfo: videoProfile =', videoProfile);
+  console.log('🔍 updateBaseInfo: eventsData 是否存在 =', !!finalEventsData);
+  if (videoProfile !== null && videoProfile !== undefined) {
+    const videoProfileText = getVideoProfileDisplayText(videoProfile);
+    console.log('✅ updateBaseInfo: 添加视频 profile 显示:', videoProfileText);
+    baseInfoHTML += `<div class="info-item">📹 ${videoProfileText}</div>`;
+  } else {
+    console.warn('⚠️ updateBaseInfo: videoProfile 为空，不显示视频 profile');
   }
   
   if (privilegesText !== null) {
@@ -1529,6 +1835,160 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
     }, 100);
   }
   
+  // 为摄像头状态标签添加鼠标悬浮事件
+  const cameraStatusTag = baseInfoElement.querySelector('.camera-status-tag');
+  if (cameraStatusTag) {
+    console.log('✅ 找到 camera-status-tag 元素，准备添加事件监听器');
+    
+    // 移除旧的事件监听器（如果存在）
+    const newCameraStatusTag = cameraStatusTag.cloneNode(true);
+    cameraStatusTag.parentNode.replaceChild(newCameraStatusTag, cameraStatusTag);
+    
+    // 保存 eventsData 到 data 属性，确保事件处理器可以访问
+    newCameraStatusTag.setAttribute('data-events-data', eventsData ? (typeof eventsData === 'string' ? eventsData : JSON.stringify(eventsData)) : '');
+    
+    // 添加鼠标悬浮事件
+    newCameraStatusTag.addEventListener('mouseenter', function(event) {
+      console.log('🖱️ 鼠标悬浮到摄像头状态标签');
+      
+      // 从 data 属性或闭包中获取 eventsData
+      let eventsDataStr = this.getAttribute('data-events-data') || (eventsData ? (typeof eventsData === 'string' ? eventsData : JSON.stringify(eventsData)) : '');
+      console.log('📝 eventsData 类型:', typeof eventsDataStr);
+      console.log('📝 eventsData 长度:', eventsDataStr ? eventsDataStr.length : 0);
+      
+      if (!eventsDataStr) {
+        console.warn('⚠️ eventsData 为空');
+        showTooltip(event, '未找到摄像头数据');
+        return;
+      }
+      
+      let parsedEventsData;
+      try {
+        parsedEventsData = typeof eventsDataStr === 'string' ? JSON.parse(eventsDataStr) : eventsDataStr;
+      } catch (e) {
+        console.warn('⚠️ 解析 eventsData 失败:', e);
+        showTooltip(event, '解析摄像头数据失败');
+        return;
+      }
+      
+      const cameraItems = getCameraInfo(parsedEventsData);
+      console.log('📊 摄像头信息:', cameraItems);
+      
+      if (cameraItems && cameraItems.length > 0) {
+        const cameraInfoText = formatCameraInfo(cameraItems);
+        console.log('✅ 准备显示摄像头信息悬浮窗');
+        showTooltip(event, cameraInfoText);
+      } else {
+        console.warn('⚠️ 未找到摄像头信息或数据为空');
+        showTooltip(event, '未找到摄像头信息');
+      }
+    });
+    
+    newCameraStatusTag.addEventListener('mouseleave', function() {
+      console.log('🖱️ 鼠标离开摄像头状态标签');
+      hideTooltip();
+    });
+    
+    newCameraStatusTag.addEventListener('mousemove', (event) => {
+      // 更新悬浮窗位置
+      const tooltip = document.querySelector('.apm-status-tooltip');
+      if (tooltip) {
+        const x = event.clientX + 10;
+        const y = event.clientY + 10;
+        tooltip.style.left = `${x}px`;
+        tooltip.style.top = `${y}px`;
+        
+        // 确保不超出视窗
+        const rect = tooltip.getBoundingClientRect();
+        if (rect.right > window.innerWidth) {
+          tooltip.style.left = `${event.clientX - rect.width - 10}px`;
+        }
+        if (rect.bottom > window.innerHeight) {
+          tooltip.style.top = `${event.clientY - rect.height - 10}px`;
+        }
+      }
+    });
+  } else {
+    console.warn('⚠️ 未找到 .camera-status-tag 元素');
+  }
+  
+  // 为音频设备状态标签添加鼠标悬浮事件
+  const audioDeviceStatusTag = baseInfoElement.querySelector('.audio-device-status-tag');
+  if (audioDeviceStatusTag) {
+    console.log('✅ 找到 audio-device-status-tag 元素，准备添加事件监听器');
+    
+    // 移除旧的事件监听器（如果存在）
+    const newAudioDeviceStatusTag = audioDeviceStatusTag.cloneNode(true);
+    audioDeviceStatusTag.parentNode.replaceChild(newAudioDeviceStatusTag, audioDeviceStatusTag);
+    
+    // 保存 eventsData 到 data 属性，确保事件处理器可以访问
+    newAudioDeviceStatusTag.setAttribute('data-events-data', eventsData ? (typeof eventsData === 'string' ? eventsData : JSON.stringify(eventsData)) : '');
+    
+    // 添加鼠标悬浮事件
+    newAudioDeviceStatusTag.addEventListener('mouseenter', function(event) {
+      console.log('🖱️ 鼠标悬浮到音频设备状态标签');
+      
+      // 从 data 属性或闭包中获取 eventsData
+      let eventsDataStr = this.getAttribute('data-events-data') || (eventsData ? (typeof eventsData === 'string' ? eventsData : JSON.stringify(eventsData)) : '');
+      console.log('📝 eventsData 类型:', typeof eventsDataStr);
+      console.log('📝 eventsData 长度:', eventsDataStr ? eventsDataStr.length : 0);
+      
+      if (!eventsDataStr) {
+        console.warn('⚠️ eventsData 为空');
+        showTooltip(event, '未找到音频设备数据');
+        return;
+      }
+      
+      let parsedEventsData;
+      try {
+        parsedEventsData = typeof eventsDataStr === 'string' ? JSON.parse(eventsDataStr) : eventsDataStr;
+      } catch (e) {
+        console.warn('⚠️ 解析 eventsData 失败:', e);
+        showTooltip(event, '解析音频设备数据失败');
+        return;
+      }
+      
+      const deviceStatChanges = getDeviceStatChange(parsedEventsData);
+      console.log('📊 音频设备状态变化信息:', deviceStatChanges);
+      
+      if (deviceStatChanges && deviceStatChanges.length > 0) {
+        const deviceStatChangeText = formatDeviceStatChange(deviceStatChanges);
+        console.log('✅ 准备显示音频设备状态变化悬浮窗');
+        showTooltip(event, deviceStatChangeText);
+      } else {
+        console.warn('⚠️ 未找到音频设备状态变化信息或数据为空');
+        showTooltip(event, '未找到音频设备状态变化信息');
+      }
+    });
+    
+    newAudioDeviceStatusTag.addEventListener('mouseleave', function() {
+      console.log('🖱️ 鼠标离开音频设备状态标签');
+      hideTooltip();
+    });
+    
+    newAudioDeviceStatusTag.addEventListener('mousemove', (event) => {
+      // 更新悬浮窗位置
+      const tooltip = document.querySelector('.apm-status-tooltip');
+      if (tooltip) {
+        const x = event.clientX + 10;
+        const y = event.clientY + 10;
+        tooltip.style.left = `${x}px`;
+        tooltip.style.top = `${y}px`;
+        
+        // 确保不超出视窗
+        const rect = tooltip.getBoundingClientRect();
+        if (rect.right > window.innerWidth) {
+          tooltip.style.left = `${event.clientX - rect.width - 10}px`;
+        }
+        if (rect.bottom > window.innerHeight) {
+          tooltip.style.top = `${event.clientY - rect.height - 10}px`;
+        }
+      }
+    });
+  } else {
+    console.warn('⚠️ 未找到 .audio-device-status-tag 元素');
+  }
+  
   console.log('✅ Base Info 已更新:', { 
     channelProfile,
     channelProfileText: getChannelProfileDisplayText(channelProfile),
@@ -1538,6 +1998,8 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
     muteText: getMuteStatusDisplayText(muteStatusValues),
     audioProfileValues,
     audioProfileText: getAudioProfileDisplayText(audioProfileValues),
+    videoProfile,
+    videoProfileText: videoProfile ? getVideoProfileDisplayText(videoProfile) : null,
     privilegesText,
     localWanIpArray
   });
@@ -1553,6 +2015,12 @@ export default {
   getMuteStatusDisplayText,
   getAudioProfile,
   getAudioProfileDisplayText,
+  getVideoProfile,
+  getVideoProfileDisplayText,
+  getCameraInfo,
+  formatCameraInfo,
+  getDeviceStatChange,
+  formatDeviceStatChange,
   checkPrivileges,
   getApmStatus,
   getLocalWanIpFromVocs,
@@ -1574,6 +2042,12 @@ if (typeof window !== 'undefined') {
   window.getMuteStatusDisplayText = getMuteStatusDisplayText;
   window.getAudioProfile = getAudioProfile;
   window.getAudioProfileDisplayText = getAudioProfileDisplayText;
+  window.getVideoProfile = getVideoProfile;
+  window.getVideoProfileDisplayText = getVideoProfileDisplayText;
+  window.getCameraInfo = getCameraInfo;
+  window.formatCameraInfo = formatCameraInfo;
+  window.getDeviceStatChange = getDeviceStatChange;
+  window.formatDeviceStatChange = formatDeviceStatChange;
   window.checkPrivileges = checkPrivileges;
   window.getApmStatus = getApmStatus;
   window.getLocalWanIpFromVocs = getLocalWanIpFromVocs;

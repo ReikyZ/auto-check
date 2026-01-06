@@ -1000,6 +1000,48 @@ window.calculateChangeFrequency = function(data) {
 // ES6 动态 import 辅助函数
 async function updateBaseInfoWithES6(responseText, eventsData = null) {
   try {
+    // 如果 eventsData 为空，尝试从 dataUtil 获取
+    if (!eventsData) {
+      try {
+        const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
+        
+        // 尝试从 sid 获取 events 数据
+        if (window.autoCheckSids && Array.isArray(window.autoCheckSids) && window.autoCheckSids.length > 0) {
+          const sid = window.autoCheckSids[0];
+          eventsData = await dataUtil.getData('events', sid);
+          if (eventsData) {
+            console.log('✅ updateBaseInfoWithES6: 从 dataUtil 获取到 events 数据 (sid)');
+            // 保存到 window 供后续使用
+            window.currentEventsData = eventsData;
+          }
+        }
+        
+        // 如果还没有，尝试从 uid 获取
+        if (!eventsData) {
+          const uidElements = document.querySelectorAll('.uid');
+          if (uidElements.length > 0) {
+            const uid = uidElements[0].textContent.trim();
+            if (uid) {
+              eventsData = await dataUtil.getData('eventlist', uid);
+              if (!eventsData) {
+                eventsData = await dataUtil.getData('events', uid);
+              }
+              if (eventsData) {
+                console.log('✅ updateBaseInfoWithES6: 从 dataUtil 获取到 events 数据 (uid)');
+                // 保存到 window 供后续使用
+                window.currentEventsData = eventsData;
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ updateBaseInfoWithES6: 从 dataUtil 获取 events 数据失败:', e);
+      }
+    } else {
+      // 如果 eventsData 存在，也保存到 window 供后续使用
+      window.currentEventsData = eventsData;
+    }
+    
     // 使用 ES6 动态 import 导入模块
     const baseInfoModule = await import(chrome.runtime.getURL('src/base-info.js'));
     
