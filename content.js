@@ -3001,14 +3001,20 @@ function addClickOutsideToShrink(chartContainer) {
   let dragStartY = 0;
   let dragStartLeft = 0;
   let dragStartTop = 0;
+  let justFinishedDragging = false; // 标记是否刚完成拖拽
+  let dragEndTimer = null; // 拖拽结束的定时器
   
   // 添加拖拽功能
   function addDragFunctionality() {
+    let hasMoved = false; // 标记鼠标是否移动
+    let mouseDownTime = 0; // 记录鼠标按下的时间
+    
     chartContainer.addEventListener('mousedown', function(e) {
       if (!isShrunk) return;
       
-      e.preventDefault();
-      isDragging = true;
+      hasMoved = false;
+      isDragging = false;
+      mouseDownTime = Date.now();
       dragStartX = e.clientX;
       dragStartY = e.clientY;
       
@@ -3016,26 +3022,61 @@ function addClickOutsideToShrink(chartContainer) {
       dragStartLeft = rect.left;
       dragStartTop = rect.top;
       
-      chartContainer.style.cursor = 'grabbing';
+      // 清除之前的定时器
+      if (dragEndTimer) {
+        clearTimeout(dragEndTimer);
+        dragEndTimer = null;
+      }
+      justFinishedDragging = false;
     });
     
     document.addEventListener('mousemove', function(e) {
-      if (!isDragging || !isShrunk) return;
+      if (!isShrunk || mouseDownTime === 0) return;
       
-      e.preventDefault();
-      const deltaX = e.clientX - dragStartX;
-      const deltaY = e.clientY - dragStartY;
+      // 检查鼠标是否移动了足够的距离（5px）才认为是拖拽
+      const deltaX = Math.abs(e.clientX - dragStartX);
+      const deltaY = Math.abs(e.clientY - dragStartY);
       
-      chartContainer.style.left = (dragStartLeft + deltaX) + 'px';
-      chartContainer.style.top = (dragStartTop + deltaY) + 'px';
-      chartContainer.style.transform = 'none';
+      if (deltaX > 5 || deltaY > 5) {
+        if (!isDragging) {
+          isDragging = true;
+          hasMoved = true;
+          chartContainer.style.cursor = 'grabbing';
+        }
+        
+        if (isDragging) {
+          e.preventDefault();
+          const moveDeltaX = e.clientX - dragStartX;
+          const moveDeltaY = e.clientY - dragStartY;
+          
+          chartContainer.style.left = (dragStartLeft + moveDeltaX) + 'px';
+          chartContainer.style.top = (dragStartTop + moveDeltaY) + 'px';
+          chartContainer.style.transform = 'none';
+        }
+      }
     });
     
     document.addEventListener('mouseup', function() {
-      if (isDragging) {
+      if (isDragging && hasMoved) {
+        // 只有真正拖拽了才设置标志
         isDragging = false;
         chartContainer.style.cursor = 'grab';
+        
+        // 标记刚完成拖拽，在300ms内不响应点击
+        justFinishedDragging = true;
+        
+        // 300ms后允许响应点击
+        dragEndTimer = setTimeout(() => {
+          justFinishedDragging = false;
+          dragEndTimer = null;
+        }, 300);
+      } else {
+        // 如果没有移动，只是点击，重置状态
+        isDragging = false;
+        hasMoved = false;
+        justFinishedDragging = false;
       }
+      mouseDownTime = 0;
     });
   }
   
@@ -3046,6 +3087,11 @@ function addClickOutsideToShrink(chartContainer) {
   function handleClickOutside(event) {
     // 如果正在拖拽，不处理点击
     if (isDragging) {
+      return;
+    }
+    
+    // 如果刚完成拖拽，不处理点击（避免拖拽后立即触发恢复）
+    if (justFinishedDragging) {
       return;
     }
     
@@ -3065,49 +3111,52 @@ function addClickOutsideToShrink(chartContainer) {
         chartContainer.classList.remove('shrink-to-circle');
         chartContainer.style.cursor = '';
         
-        // 添加 transition
-        chartContainer.style.transition = 'all 0.5s ease-out';
+        // 先淡出
+        chartContainer.style.opacity = '0';
+        chartContainer.style.transition = 'opacity 0.3s ease-out';
         
-        // 使用 requestAnimationFrame 确保 transition 已应用
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            // 恢复原始样式
-            if (originalCssText) {
-              // 先恢复基本样式，但保留 transition
-              chartContainer.style.cssText = originalCssText;
-              chartContainer.style.transition = 'all 0.5s ease-out';
-              // 恢复原始位置（如果原本是居中定位，需要恢复 transform）
-              if (originalPosition.left !== undefined && originalPosition.left !== 'auto') {
-                chartContainer.style.left = originalPosition.left;
-              }
-              if (originalPosition.top !== undefined && originalPosition.top !== 'auto') {
-                chartContainer.style.top = originalPosition.top;
-              }
-              if (originalPosition.transform && originalPosition.transform !== 'none') {
-                chartContainer.style.transform = originalPosition.transform;
-              }
+        // 淡出后立即恢复样式和位置，然后淡入
+        setTimeout(() => {
+          // 恢复原始样式
+          if (originalCssText) {
+            chartContainer.style.cssText = originalCssText;
+            // 恢复原始位置（如果原本是居中定位，需要恢复 transform）
+            if (originalPosition.left !== undefined && originalPosition.left !== 'auto') {
+              chartContainer.style.left = originalPosition.left;
             }
-            
-            // 恢复子元素可见性
-            Array.from(chartContainer.children).forEach((child, index) => {
-              child.style.transition = 'opacity 0.5s ease-out';
-              if (originalChildStyles[index]) {
-                child.style.opacity = originalChildStyles[index].opacity || '';
-                child.style.pointerEvents = originalChildStyles[index].pointerEvents || '';
-              } else {
-                child.style.opacity = '';
-                child.style.pointerEvents = '';
-              }
-            });
+            if (originalPosition.top !== undefined && originalPosition.top !== 'auto') {
+              chartContainer.style.top = originalPosition.top;
+            }
+            if (originalPosition.transform && originalPosition.transform !== 'none') {
+              chartContainer.style.transform = originalPosition.transform;
+            }
+          }
+          
+          // 恢复子元素可见性
+          Array.from(chartContainer.children).forEach((child, index) => {
+            if (originalChildStyles[index]) {
+              child.style.opacity = originalChildStyles[index].opacity || '';
+              child.style.pointerEvents = originalChildStyles[index].pointerEvents || '';
+            } else {
+              child.style.opacity = '';
+              child.style.pointerEvents = '';
+            }
           });
-        });
+          
+          // 淡入
+          requestAnimationFrame(() => {
+            chartContainer.style.transition = 'opacity 0.3s ease-out';
+            chartContainer.style.opacity = '1';
+          });
+        }, 300);
         
         isShrunk = false;
         
         // 动画结束后移除 transition
         setTimeout(() => {
           chartContainer.style.transition = '';
-        }, 500);
+          chartContainer.style.opacity = '';
+        }, 600);
         
         // 重新添加点击外部监听器
         setTimeout(() => {
@@ -3172,30 +3221,35 @@ function addClickOutsideToShrink(chartContainer) {
     chartContainer.classList.add('shrink-to-circle');
     chartContainer.style.cursor = 'grab';
     
-    // 添加 transition
-    chartContainer.style.transition = 'all 0.5s ease-out';
+    // 先淡出
+    chartContainer.style.transition = 'opacity 0.3s ease-out';
+    chartContainer.style.opacity = '0';
     
-    // 使用 requestAnimationFrame 确保 transition 已应用后再设置目标样式
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        chartContainer.style.width = '50px';
-        chartContainer.style.height = '50px';
-        chartContainer.style.maxWidth = '50px';
-        chartContainer.style.borderRadius = '50%';
-        chartContainer.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
-        chartContainer.style.overflow = 'hidden';
-        chartContainer.style.left = targetLeft + 'px';
-        chartContainer.style.top = targetTop + 'px';
-        chartContainer.style.transform = 'none';
+    // 淡出后立即改变样式和位置，然后淡入
+    setTimeout(() => {
+      // 直接设置目标样式（无动画）
+      chartContainer.style.width = '50px';
+      chartContainer.style.height = '50px';
+      chartContainer.style.maxWidth = '50px';
+      chartContainer.style.borderRadius = '50%';
+      chartContainer.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+      chartContainer.style.overflow = 'hidden';
+      chartContainer.style.left = targetLeft + 'px';
+      chartContainer.style.top = targetTop + 'px';
+      chartContainer.style.transform = 'none';
+      
+      // 隐藏子元素
+      Array.from(chartContainer.children).forEach(child => {
+        child.style.opacity = '0';
+        child.style.pointerEvents = 'none';
       });
-    });
-    
-    // 隐藏子元素
-    Array.from(chartContainer.children).forEach(child => {
-      child.style.transition = 'opacity 0.5s ease-out';
-      child.style.opacity = '0';
-      child.style.pointerEvents = 'none';
-    });
+      
+      // 淡入
+      requestAnimationFrame(() => {
+        chartContainer.style.transition = 'opacity 0.3s ease-out';
+        chartContainer.style.opacity = '1';
+      });
+    }, 300);
     
     isShrunk = true;
     
