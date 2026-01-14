@@ -5658,29 +5658,170 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
     });
   }
 
-  // Basic Markdown Parser (修复缩进列表问题)
+  // Enhanced Markdown Parser - 增强版 Markdown 解析器
   function parseMarkdown(text) {
     if (!text) return '';
 
-    let html = text
-      // Replace newlines with <br>
-      .replace(/\n/g, '<br>')
-      // Bold: **text** -> <b>text</b>
-      .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
-      // Headers: ### Header -> <h3>Header</h3>
-      .replace(/###\s(.*?)(<br>|$)/g, '<h3 style="margin: 10px 0 5px; font-size:14px; color:#333;">$1</h3>')
-      // Headers: #### Header -> <h4>Header</h4>
-      .replace(/####\s(.*?)(<br>|$)/g, '<h4 style="margin: 8px 0 4px; font-size:13px; color:#555;">$1</h4>')
-      // Bullet points with - (allow leading whitespace): - item -> • item
-      .replace(/(<br>|^)(\s*)-\s(.*?)(<br>|$)/g, '$1$2• $3$4')
-      // Bullet points with * (allow leading whitespace): * item -> • item
-      .replace(/(<br>|^)(\s*)\*\s(.*?)(<br>|$)/g, '$1$2• $3$4')
-      // Numbered list: 1. item (keep number, just style it)
-      .replace(/(<br>|^)(\s*)(\d+)\.\s(.*?)(<br>|$)/g, '$1$2<b>$3.</b> $4$5')
-      // Blockquotes: > text -> <blockquote>text</blockquote>
-      .replace(/>([^<].*?)(<br>|$)/g, '<blockquote style="border-left: 3px solid #ddd; margin: 5px 0; padding-left: 10px; color: #666;">$1</blockquote>');
+    // 预处理：保护代码块中的内容
+    const codeBlocks = [];
+    let processed = text.replace(/`([^`]+)`/g, (match, code) => {
+      codeBlocks.push(code);
+      return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+    });
+
+    // 按行处理
+    const lines = processed.split('\n');
+    let html = '';
+    let inList = false;
+    let listType = null; // 'ul' or 'ol'
+    let listBuffer = [];
+
+    // 辅助函数：结束列表
+    const endList = () => {
+      if (inList && listBuffer.length > 0) {
+        const listTag = listType === 'ol' ? 'ol' : 'ul';
+        const listStyle = listType === 'ol' 
+          ? 'margin: 12px 0; padding-left: 24px; list-style-type: decimal;'
+          : 'margin: 12px 0; padding-left: 24px; list-style-type: none;';
+        html += `<${listTag} style="${listStyle}">`;
+        listBuffer.forEach(item => {
+          const bullet = listType === 'ol' ? '' : '<span style="color: #667eea; margin-right: 8px;">●</span>';
+          html += `<li style="margin: 8px 0; line-height: 1.6;">${bullet}${item}</li>`;
+        });
+        html += `</${listTag}>`;
+        listBuffer = [];
+        inList = false;
+        listType = null;
+      }
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+      let line = lines[i];
+
+      // 二级标题 ## -> 带分隔线的大标题
+      if (/^##\s+(.+)$/.test(line)) {
+        endList();
+        const title = line.replace(/^##\s+/, '');
+        html += `
+          <div style="margin-top: 24px; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 2px solid #667eea;">
+            <h2 style="margin: 0; font-size: 16px; font-weight: 600; color: #24292e; display: flex; align-items: center;">
+              <span style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 4px 10px; border-radius: 4px; margin-right: 10px; font-size: 12px;">📋</span>
+              ${title}
+            </h2>
+          </div>`;
+        continue;
+      }
+
+      // 三级标题 ### -> 中等标题
+      if (/^###\s+(.+)$/.test(line)) {
+        endList();
+        const title = line.replace(/^###\s+/, '');
+        html += `
+          <h3 style="margin: 20px 0 12px 0; font-size: 15px; font-weight: 600; color: #333; border-left: 4px solid #667eea; padding-left: 12px;">
+            ${title}
+          </h3>`;
+        continue;
+      }
+
+      // 四级标题 #### -> 小标题
+      if (/^####\s+(.+)$/.test(line)) {
+        endList();
+        const title = line.replace(/^####\s+/, '');
+        html += `
+          <h4 style="margin: 16px 0 8px 0; font-size: 14px; font-weight: 600; color: #555;">
+            ${title}
+          </h4>`;
+        continue;
+      }
+
+      // 有序列表 1. 2. 3.
+      const olMatch = line.match(/^(\d+)\.\s+(.+)$/);
+      if (olMatch) {
+        if (!inList || listType !== 'ol') {
+          endList();
+          inList = true;
+          listType = 'ol';
+        }
+        listBuffer.push(processInlineMarkdown(olMatch[2]));
+        continue;
+      }
+
+      // 无序列表 - 或 *
+      const ulMatch = line.match(/^[-*]\s+(.+)$/);
+      if (ulMatch) {
+        if (!inList || listType !== 'ul') {
+          endList();
+          inList = true;
+          listType = 'ul';
+        }
+        // 处理带有级别标签的列表项 [严重] [警告] [信息]
+        let itemContent = ulMatch[1];
+        if (itemContent.includes('[严重]')) {
+          itemContent = itemContent.replace('[严重]', '<span style="background: #dc3545; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-right: 8px;">🔴 严重</span>');
+        } else if (itemContent.includes('[警告]')) {
+          itemContent = itemContent.replace('[警告]', '<span style="background: #ffc107; color: #333; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-right: 8px;">🟡 警告</span>');
+        } else if (itemContent.includes('[信息]')) {
+          itemContent = itemContent.replace('[信息]', '<span style="background: #17a2b8; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; margin-right: 8px;">🔵 信息</span>');
+        }
+        listBuffer.push(processInlineMarkdown(itemContent));
+        continue;
+      }
+
+      // 引用块 >
+      if (/^>\s*(.*)$/.test(line)) {
+        endList();
+        const quote = line.replace(/^>\s*/, '');
+        html += `
+          <blockquote style="margin: 12px 0; padding: 12px 16px; background: #f8f9fa; border-left: 4px solid #667eea; color: #555; border-radius: 0 4px 4px 0;">
+            ${processInlineMarkdown(quote)}
+          </blockquote>`;
+        continue;
+      }
+
+      // 空行
+      if (line.trim() === '') {
+        endList();
+        html += '<div style="height: 8px;"></div>';
+        continue;
+      }
+
+      // 普通段落
+      endList();
+      html += `<p style="margin: 10px 0; line-height: 1.7; color: #333;">${processInlineMarkdown(line)}</p>`;
+    }
+
+    // 结束可能未闭合的列表
+    endList();
+
+    // 还原代码块
+    codeBlocks.forEach((code, index) => {
+      html = html.replace(
+        `__CODE_BLOCK_${index}__`,
+        `<code style="background: #e9ecef; padding: 2px 6px; border-radius: 4px; font-family: 'SF Mono', Consolas, monospace; font-size: 13px; color: #e83e8c;">${code}</code>`
+      );
+    });
 
     return html;
+  }
+
+  // 处理行内 Markdown 元素（加粗、斜体等）
+  function processInlineMarkdown(text) {
+    if (!text) return '';
+    
+    return text
+      // 加粗 **text** -> <strong>
+      .replace(/\*\*(.+?)\*\*/g, '<strong style="color: #d63384; font-weight: 600;">$1</strong>')
+      // 斜体 *text* -> <em> (需要注意不要和加粗冲突)
+      .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em style="color: #6c757d;">$1</em>')
+      // 角色/UID 高亮
+      .replace(/(UID[=:]\s*)(\d+)/g, '$1<span style="background: #e3f2fd; padding: 2px 6px; border-radius: 4px; font-weight: 600; color: #1976d2;">$2</span>')
+      // SID 高亮
+      .replace(/(SID[=:]\s*)([A-F0-9]{32})/gi, '$1<span style="background: #fff3e0; padding: 2px 6px; border-radius: 4px; font-family: monospace; font-size: 12px; color: #e65100;">$2</span>')
+      // 数值高亮 (如 = 34.4)
+      .replace(/=\s*(\d+\.?\d*)/g, '= <span style="font-weight: 600; color: #28a745;">$1</span>')
+      // 发送端/接收端 标签
+      .replace(/发送端/g, '<span style="background: #d4edda; padding: 2px 8px; border-radius: 4px; color: #155724; font-weight: 500;">📤 发送端</span>')
+      .replace(/接收端/g, '<span style="background: #cce5ff; padding: 2px 8px; border-radius: 4px; color: #004085; font-weight: 500;">📥 接收端</span>');
   }
 
   // 烟花效果函数
