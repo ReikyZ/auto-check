@@ -16,7 +16,7 @@ export const getChannelProfile = (eventsData) => {
   }
 
   let parsed;
-  
+
   // 如果 eventsData 是字符串，尝试解析
   if (typeof eventsData === 'string') {
     try {
@@ -63,7 +63,7 @@ export const getChannelProfileDisplayText = (channelProfile) => {
   if (channelProfile === null || channelProfile === undefined) {
     return '未知';
   }
-  
+
   if (channelProfile === 0) {
     return '通信模式';
   } else if (channelProfile === 1) {
@@ -89,7 +89,7 @@ export const getSDKClientRole = (responseText) => {
   }
 
   const values = [];
-  
+
   // 遍历数据结构查找 "SDK Client Role"
   for (const item of Array.isArray(parsed) ? parsed : []) {
     if (item && Array.isArray(item.data)) {
@@ -117,7 +117,7 @@ export const getSDKClientRole = (responseText) => {
     console.warn('未找到 SDK Client Role 数据');
     return null;
   }
-  
+
   return values;
 };
 
@@ -130,10 +130,10 @@ export const getRoleDisplayText = (roleValues) => {
   if (!roleValues || !Array.isArray(roleValues) || roleValues.length === 0) {
     return '角色未知';
   }
-  
+
   const firstValue = roleValues[0];
   let displayText = '初始';
-  
+
   if (firstValue === 1) {
     displayText = '角色为主播';
   } else if (firstValue === 2) {
@@ -141,13 +141,13 @@ export const getRoleDisplayText = (roleValues) => {
   } else {
     displayText = '角色未知';
   }
-  
+
   // 检查数组中是否有不同的值
   const hasVariation = roleValues.some(value => value !== firstValue);
   if (hasVariation) {
     displayText += '，有变化';
   }
-  
+
   return displayText;
 };
 
@@ -163,7 +163,7 @@ export const getLocalWanIpFromVocs = (eventsData) => {
   }
 
   let parsed;
-  
+
   // 如果 eventsData 是字符串，尝试解析
   if (typeof eventsData === 'string') {
     try {
@@ -185,7 +185,7 @@ export const getLocalWanIpFromVocs = (eventsData) => {
   }
 
   const ipSet = new Set();
-  
+
   // 遍历 events 数组，查找 name 为 "vosdk.vocs" 的项
   for (let i = 0; i < parsed.length; i++) {
     const event = parsed[i];
@@ -203,7 +203,7 @@ export const getLocalWanIpFromVocs = (eventsData) => {
     console.warn('getLocalWanIpFromVocs: 未找到 vosdk.vocs 事件的 localWanIp 数据');
     return null;
   }
-  
+
   // 转换为数组并返回
   const ipArray = Array.from(ipSet);
   console.log('getLocalWanIpFromVocs: 找到的去重 IP 地址:', ipArray);
@@ -219,7 +219,7 @@ export const getIpDisplayText = (ipArray) => {
   if (!ipArray || !Array.isArray(ipArray) || ipArray.length === 0) {
     return null;
   }
-  
+
   if (ipArray.length === 1) {
     return `IP: ${ipArray[0]}`;
   } else {
@@ -241,7 +241,7 @@ export const getIpLocationInfo = async (ipAddress) => {
 
   try {
     console.log('🌐 请求 IP 地理位置信息:', ipAddress);
-    
+
     // 参考 error-code.js 的实现方式，使用 chrome.runtime.sendMessage
     const response = await new Promise((resolve, reject) => {
       chrome.runtime.sendMessage(
@@ -286,19 +286,19 @@ const createIpInfoTooltip = (locationData) => {
 
   const tooltip = document.createElement('div');
   tooltip.className = 'ip-info-tooltip';
-  
+
   // 提取需要显示的字段
   const country = locationData.country_name || '未知';
   const region = locationData.region_name || '未知';
   const city = locationData.city_name || '未知';
   const line = locationData.line || '未知';
-  
+
   // 翻译 line 信息
   const lineDisplay = lineTranslationMap[line] || line;
-  
+
   // 构建提示框内容
   let tooltipContent = '';
-  
+
   // 显示国家、地区、城市信息
   const locationText = [country, region, city].filter(item => item && item !== '未知').join(' - ');
   if (locationText) {
@@ -308,7 +308,7 @@ const createIpInfoTooltip = (locationData) => {
       </div>
     `;
   }
-  
+
   // 显示线路信息
   if (line && line !== '未知') {
     // 判断是否为三大运营商
@@ -321,7 +321,7 @@ const createIpInfoTooltip = (locationData) => {
       </div>
     `;
   }
-  
+
   // 如果没有数据，显示默认消息
   if (!tooltipContent) {
     tooltipContent = `
@@ -330,9 +330,9 @@ const createIpInfoTooltip = (locationData) => {
       </div>
     `;
   }
-  
+
   tooltip.innerHTML = tooltipContent;
-  
+
   // 设置样式
   Object.assign(tooltip.style, {
     position: 'fixed',
@@ -351,7 +351,7 @@ const createIpInfoTooltip = (locationData) => {
     pointerEvents: 'none',
     backdropFilter: 'blur(10px)'
   });
-  
+
   document.body.appendChild(tooltip);
   return tooltip;
 };
@@ -388,10 +388,10 @@ export const showIpInfoTooltip = async (event, ipAddress) => {
   try {
     // 获取地理位置信息
     const locationData = await getIpLocationInfo(ipAddress);
-    
+
     // 移除加载提示框
     loadingTooltip.remove();
-    
+
     if (!locationData) {
       // 显示错误提示
       const errorTooltip = document.createElement('div');
@@ -410,7 +410,7 @@ export const showIpInfoTooltip = async (event, ipAddress) => {
         pointerEvents: 'none'
       });
       document.body.appendChild(errorTooltip);
-      
+
       // 3秒后自动移除
       setTimeout(() => {
         errorTooltip.remove();
@@ -420,13 +420,13 @@ export const showIpInfoTooltip = async (event, ipAddress) => {
 
     // 创建并显示提示框
     const tooltip = createIpInfoTooltip(locationData);
-    
+
     // 定位提示框
     requestAnimationFrame(() => {
       const rect = tooltip.getBoundingClientRect();
       let x = event.clientX + 10;
       let y = event.clientY - rect.height - 10;
-      
+
       // 确保不超出视窗
       if (x + rect.width > window.innerWidth) {
         x = Math.max(10, event.clientX - rect.width - 10);
@@ -434,7 +434,7 @@ export const showIpInfoTooltip = async (event, ipAddress) => {
       if (y < 0) {
         y = event.clientY + 10;
       }
-      
+
       tooltip.style.left = `${x}px`;
       tooltip.style.top = `${y}px`;
     });
@@ -460,25 +460,25 @@ export const hideIpInfoTooltip = () => {
 export const setupIpHoverEvents = () => {
   // 查找所有 IP 地址元素（通过 class 或 data 属性）
   const ipElements = document.querySelectorAll('.ip-address-item, [data-ip-address]');
-  
+
   ipElements.forEach(element => {
     // 移除旧的事件监听器（通过克隆节点）
     const newElement = element.cloneNode(true);
     element.parentNode.replaceChild(newElement, element);
-    
+
     // 获取 IP 地址
-    const ipAddress = newElement.getAttribute('data-ip-address') || 
-                      newElement.textContent.match(/\d+\.\d+\.\d+\.\d+/)?.[0];
-    
+    const ipAddress = newElement.getAttribute('data-ip-address') ||
+      newElement.textContent.match(/\d+\.\d+\.\d+\.\d+/)?.[0];
+
     if (!ipAddress) {
       console.warn('setupIpHoverEvents: 未找到 IP 地址');
       return;
     }
-    
+
     // 添加鼠标悬浮事件
     let hoverTimeout;
     let isHovering = false;
-    
+
     newElement.addEventListener('mouseenter', (event) => {
       isHovering = true;
       // 延迟 300ms 后显示提示框，避免鼠标快速划过时频繁请求
@@ -488,7 +488,7 @@ export const setupIpHoverEvents = () => {
         }
       }, 300);
     });
-    
+
     newElement.addEventListener('mouseleave', () => {
       isHovering = false;
       if (hoverTimeout) {
@@ -496,13 +496,13 @@ export const setupIpHoverEvents = () => {
       }
       hideIpInfoTooltip();
     });
-    
+
     // 添加样式，使其看起来可点击
     newElement.style.cursor = 'pointer';
     newElement.style.textDecoration = 'underline';
     newElement.style.color = 'white';
   });
-  
+
   console.log(`✅ 已为 ${ipElements.length} 个 IP 地址元素设置悬浮事件`);
 };
 
@@ -536,22 +536,22 @@ const isMajorISP = (line) => {
  */
 const updateIpDisplayWithLine = async () => {
   const ipElements = document.querySelectorAll('.ip-address-item[data-ip-address]');
-  
+
   for (const ipElement of ipElements) {
     const ipAddress = ipElement.getAttribute('data-ip-address');
     if (!ipAddress) continue;
-    
+
     // 检查是否已经添加了 line 信息
     if (ipElement.nextSibling && ipElement.nextSibling.classList && ipElement.nextSibling.classList.contains('ip-line-info')) {
       continue; // 已经添加过了，跳过
     }
-    
+
     try {
       // 获取 IP 地理位置信息
       const locationData = await getIpLocationInfo(ipAddress);
       if (locationData && locationData.line) {
         const line = locationData.line;
-        
+
         // 如果不是三大运营商，在 IP 后面添加红色的 line 信息
         if (!isMajorISP(line)) {
           const lineDisplay = lineTranslationMap[line] || line;
@@ -560,7 +560,7 @@ const updateIpDisplayWithLine = async () => {
           lineSpan.textContent = ` (${lineDisplay})`;
           lineSpan.style.color = '#ff6b6b';
           lineSpan.style.marginLeft = '4px';
-          
+
           // 在 IP 元素后面插入 line 信息
           ipElement.parentNode.insertBefore(lineSpan, ipElement.nextSibling);
         }
@@ -591,7 +591,7 @@ export const getSDKMuteStatus = (responseText) => {
   }
 
   const values = [];
-  
+
   // 遍历数据结构查找 "SDK Mute Status Bit based" (注意首字母小写)
   for (const item of Array.isArray(parsed) ? parsed : []) {
     if (item && Array.isArray(item.data)) {
@@ -619,7 +619,7 @@ export const getSDKMuteStatus = (responseText) => {
     console.warn('未找到 SDK Mute Status Bit based 数据');
     return null;
   }
-  
+
   return values;
 };
 
@@ -634,14 +634,14 @@ export const getMuteStatusDisplayText = (muteStatusValues) => {
   }
 
   const firstValue = muteStatusValues[0];
-  
+
   if (firstValue === 0) {
     const hasVariation = muteStatusValues.some(value => value !== firstValue);
     return hasVariation ? '无静音，有变化' : '无静音';
   }
 
   const statusList = [];
-  
+
   // 检查各个位标志
   if (firstValue & 1) {
     statusList.push('静音本地音频');
@@ -657,13 +657,13 @@ export const getMuteStatusDisplayText = (muteStatusValues) => {
   }
 
   let displayText = statusList.length > 0 ? statusList.join(' & ') : '无静音';
-  
+
   // 检查数组中是否有不同的值
   const hasVariation = muteStatusValues.some(value => value !== firstValue);
   if (hasVariation) {
     displayText += '，有变化';
   }
-  
+
   return displayText;
 };
 
@@ -687,7 +687,7 @@ export const getAudioProfile = (responseText) => {
   }
 
   const values = [];
-  
+
   // 遍历数据结构查找 "A AUDIO PROFILE"
   for (const item of Array.isArray(parsed) ? parsed : []) {
     if (item && Array.isArray(item.data)) {
@@ -715,7 +715,7 @@ export const getAudioProfile = (responseText) => {
     console.warn('未找到 A AUDIO PROFILE 数据');
     return null;
   }
-  
+
   return values;
 };
 
@@ -761,22 +761,22 @@ export const getAudioProfileDisplayText = (audioProfileValues) => {
   }
 
   const firstValue = audioProfileValues[0];
-  
+
   // 解析值：value = AUDIO_PROFILE * 16 + AUDIO_SCENARIO
   const audioProfile = Math.floor(firstValue / 16);
   const audioScenario = firstValue % 16;
-  
+
   const profileName = AUDIO_PROFILE_MAP[audioProfile] || `未知(${audioProfile})`;
   const scenarioName = AUDIO_SCENARIO_MAP[audioScenario] || `未知(${audioScenario})`;
-  
+
   let displayText = `音频 profile 为${profileName}，场景为 ${scenarioName}`;
-  
+
   // 检查数组中是否有不同的值
   const hasVariation = audioProfileValues.some(value => value !== firstValue);
   if (hasVariation) {
     displayText += '，有变化';
   }
-  
+
   return displayText;
 };
 
@@ -792,7 +792,7 @@ export const getVideoProfile = (eventsData) => {
   }
 
   let parsed;
-  
+
   // 如果 eventsData 是字符串，尝试解析
   if (typeof eventsData === 'string') {
     try {
@@ -817,7 +817,7 @@ export const getVideoProfile = (eventsData) => {
   // 从后往前查找，获取最新的数据
   let videoProfile = null;
   let videoProfileLow = null;
-  
+
   for (let i = parsed.length - 1; i >= 0; i--) {
     const event = parsed[i];
     if (event && event.details) {
@@ -864,7 +864,7 @@ export const getVideoProfileDisplayText = (videoProfileData) => {
   }
 
   let text = '';
-  
+
   // 显示主视频 profile
   if (videoProfileData.videoProfile) {
     const p = videoProfileData.videoProfile;
@@ -874,7 +874,7 @@ export const getVideoProfileDisplayText = (videoProfileData) => {
     const bitrate = p.bitrate !== undefined ? p.bitrate : '未知';
     text += `视频 profile 为${width}*${height} fps ${frameRate} bitrate ${bitrate}`;
   }
-  
+
   // 显示低码率视频 profile
   if (videoProfileData.videoProfileLow) {
     if (text) {
@@ -903,7 +903,7 @@ export const getCameraInfo = (eventsData) => {
   }
 
   let parsed;
-  
+
   // 如果 eventsData 是字符串，尝试解析
   if (typeof eventsData === 'string') {
     try {
@@ -976,7 +976,7 @@ export const getDeviceStatChange = (eventsData) => {
   }
 
   let parsed;
-  
+
   // 如果 eventsData 是字符串，尝试解析
   if (typeof eventsData === 'string') {
     try {
@@ -1076,7 +1076,7 @@ export const checkPrivileges = (eventsData) => {
   console.log('checkPrivileges: eventsData 是否为数组:', Array.isArray(eventsData));
 
   let parsed;
-  
+
   // 如果 eventsData 是字符串，尝试解析
   if (typeof eventsData === 'string') {
     try {
@@ -1108,21 +1108,21 @@ export const checkPrivileges = (eventsData) => {
       if (details.name === 'vos.userPrivileges') {
         foundCount++;
         console.log('checkPrivileges: 找到 vos.userPrivileges 事件:', details);
-        
+
         const hasAudioExpireTs = 'clientAudioExpireTs' in details;
         const hasVideoExpireTs = 'clientVideoExpireTs' in details;
-        
+
         if (hasAudioExpireTs || hasVideoExpireTs) {
           const clientAudioExpireTs = hasAudioExpireTs ? details.clientAudioExpireTs : null;
           const clientVideoExpireTs = hasVideoExpireTs ? details.clientVideoExpireTs : null;
-          
+
           console.log('checkPrivileges: clientAudioExpireTs 值:', clientAudioExpireTs);
           console.log('checkPrivileges: clientVideoExpireTs 值:', clientVideoExpireTs);
-          
+
           // 检查音频和视频权限
           const audioExpired = hasAudioExpireTs && clientAudioExpireTs === 0;
           const videoExpired = hasVideoExpireTs && clientVideoExpireTs === 0;
-          
+
           // 根据权限状态返回相应的文本
           if (audioExpired && videoExpired) {
             return 'token 无发音频和视频权限';
@@ -1217,7 +1217,7 @@ export const getApmStatus = (responseText) => {
   }
 
   const values = [];
-  
+
   // 遍历数据结构查找 "A NEARIN APM STATUS"
   for (const item of Array.isArray(parsed) ? parsed : []) {
     if (item && Array.isArray(item.data)) {
@@ -1245,7 +1245,7 @@ export const getApmStatus = (responseText) => {
     console.warn('未找到 A NEARIN APM STATUS 数据');
     return null;
   }
-  
+
   return values;
 };
 
@@ -1269,7 +1269,7 @@ export const getAecConfiguration = (responseText) => {
   }
 
   const values = [];
-  
+
   // 遍历数据结构查找 "Aec Configuration"
   for (const item of Array.isArray(parsed) ? parsed : []) {
     if (item && Array.isArray(item.data)) {
@@ -1297,7 +1297,7 @@ export const getAecConfiguration = (responseText) => {
     console.warn('未找到 Aec Configuration 数据');
     return null;
   }
-  
+
   return values;
 };
 
@@ -1310,7 +1310,7 @@ const formatAEC = (value) => {
   if (value === null || value === undefined) {
     return "暂无指标数据";
   }
-  let text = "<br>";
+  let text = "";
   const enabled = value >> 31 & 0x1;
   if (enabled === 0) {
     return "enabled: off";
@@ -1339,7 +1339,7 @@ const formatAEC = (value) => {
  */
 const showTooltip = (event, content) => {
   console.log('🔧 showTooltip 被调用，内容:', content);
-  
+
   // 移除已存在的悬浮窗
   const existingTooltip = document.querySelector('.apm-status-tooltip');
   if (existingTooltip) {
@@ -1351,7 +1351,7 @@ const showTooltip = (event, content) => {
   const tooltip = document.createElement('div');
   tooltip.className = 'apm-status-tooltip';
   tooltip.innerHTML = `<div style="white-space: pre-line;">${content}</div>`; // 确保换行显示
-  
+
   // 强制设置样式，确保可见
   Object.assign(tooltip.style, {
     position: 'fixed',
@@ -1371,9 +1371,9 @@ const showTooltip = (event, content) => {
     pointerEvents: 'none',
     whiteSpace: 'pre-line' // 确保换行
   });
-  
+
   document.body.appendChild(tooltip);
-  
+
   console.log('✅ 悬浮窗已创建并添加到 DOM');
   console.log('📝 悬浮窗元素:', tooltip);
   console.log('📝 悬浮窗内容:', tooltip.innerHTML);
@@ -1384,11 +1384,11 @@ const showTooltip = (event, content) => {
     const rect = tooltip.getBoundingClientRect();
     console.log('📐 悬浮窗尺寸:', rect);
     console.log('📐 悬浮窗是否可见:', rect.width > 0 && rect.height > 0);
-    
+
     // 定位到鼠标右下角
     let x = event.clientX + 10;
     let y = event.clientY + 10;
-    
+
     // 确保不超出视窗
     if (x + rect.width > window.innerWidth) {
       x = Math.max(10, event.clientX - rect.width - 10);
@@ -1396,13 +1396,13 @@ const showTooltip = (event, content) => {
     if (y + rect.height > window.innerHeight) {
       y = Math.max(10, event.clientY - rect.height - 10);
     }
-    
+
     tooltip.style.left = `${x}px`;
     tooltip.style.top = `${y}px`;
-    
+
     console.log('📍 最终悬浮窗位置:', { x, y, left: tooltip.style.left, top: tooltip.style.top });
     console.log('📍 最终悬浮窗边界:', tooltip.getBoundingClientRect());
-    
+
     // 检查是否有其他元素遮挡
     const elementAtPoint = document.elementFromPoint(x + 10, y + 10);
     console.log('🔍 悬浮窗位置处的元素:', elementAtPoint);
@@ -1427,18 +1427,18 @@ const hideTooltip = () => {
 export const updateBaseInfo = (responseText, eventsData = null) => {
   // 尝试查找 .base-info 元素
   let baseInfoElement = document.querySelector('.base-info');
-  
+
   // 如果元素不存在，尝试创建它
   if (!baseInfoElement) {
     console.log('📝 .base-info 元素不存在，尝试创建...');
-    
+
     // 查找图表容器
     const chartContainer = document.querySelector('.combined-audio-analysis-container');
-    
+
     if (chartContainer) {
       // 查找 chart-content 容器
       const chartContent = chartContainer.querySelector('.chart-content');
-      
+
       if (chartContent) {
         // 创建 base-info 元素
         baseInfoElement = document.createElement('div');
@@ -1461,30 +1461,30 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
 
   // 提取 channelProfile 信息（从 events 数据中获取）
   const channelProfile = eventsData ? getChannelProfile(eventsData) : null;
-  
+
   // 提取角色信息（返回数组）
   const roleValues = getSDKClientRole(responseText);
-  
+
   // 提取 mute 状态信息（返回数组）
   const muteStatusValues = getSDKMuteStatus(responseText);
 
   // 提取 audio profile 信息（返回数组）
   const audioProfileValues = getAudioProfile(responseText);
-  
+
   // 检查用户权限（从 events 数据中获取）
   const privilegesText = eventsData ? checkPrivileges(eventsData) : null;
-  
+
   // 提取 localWanIp 信息（从 events 数据中获取）
   const localWanIpArray = eventsData ? getLocalWanIpFromVocs(eventsData) : null;
-  
+
   // 构建基本信息内容（使用 ES6 模板字符串）
   let baseInfoHTML = '<h4 style="display: inline-block; margin-right: 10px;">基本信息</h4><span class="status-tag">3A状态</span><span class="aec-status-tag status-tag" style="margin-left: 10px;">AEC状态</span><span class="camera-status-tag status-tag" style="margin-left: 10px;">摄像头状态</span><span class="audio-device-status-tag status-tag" style="margin-left: 10px;">音频状态</span>';
-  
+
   // 将 channelProfile 和 roleValues 信息合并到同一行显示
   const channelProfileText = channelProfile !== null ? getChannelProfileDisplayText(channelProfile) : null;
   const roleText = roleValues !== null ? getRoleDisplayText(roleValues) : null;
   const ipText = localWanIpArray !== null ? getIpDisplayText(localWanIpArray) : null;
-  
+
   if (channelProfileText !== null || roleText !== null || ipText !== null) {
     let combinedText = '';
     if (channelProfileText !== null) {
@@ -1503,7 +1503,7 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
       if (combinedText) combinedText += ' | ';
       // 为每个 IP 地址创建可悬浮的元素
       if (localWanIpArray && localWanIpArray.length > 0) {
-        const ipElements = localWanIpArray.map(ip => 
+        const ipElements = localWanIpArray.map(ip =>
           `<span class="ip-address-item" data-ip-address="${ip}" style="cursor: pointer; text-decoration: underline; color: white; margin: 0 2px;">${ip}</span>`
         ).join(', ');
         combinedText += `🌐 IP: ${ipElements}`;
@@ -1515,7 +1515,7 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
   } else {
     baseInfoHTML += '<div class="info-item">⚠️ 未找到 channelProfile 和角色信息</div>';
   }
-  
+
   if (muteStatusValues !== null) {
     const muteText = getMuteStatusDisplayText(muteStatusValues);
     const muteIcon = muteStatusValues[0] === 0 ? '🔊' : '🔇';
@@ -1523,14 +1523,14 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
   } else {
     baseInfoHTML += '<div class="info-item">⚠️ 未找到 mute 状态信息</div>';
   }
-  
+
   if (audioProfileValues !== null) {
     const audioProfileText = getAudioProfileDisplayText(audioProfileValues);
     baseInfoHTML += `<div class="info-item">🎵 ${audioProfileText}</div>`;
   } else {
     baseInfoHTML += '<div class="info-item">⚠️ 未找到 audio profile 信息</div>';
   }
-  
+
   // 提取视频 profile 信息（从 events 数据中获取）
   // 如果 eventsData 为空，尝试从其他地方获取
   let finalEventsData = eventsData;
@@ -1544,7 +1544,7 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
       console.warn('⚠️ updateBaseInfo: eventsData 为空，无法获取视频 profile');
     }
   }
-  
+
   const videoProfile = finalEventsData ? getVideoProfile(finalEventsData) : null;
   console.log('🔍 updateBaseInfo: videoProfile =', videoProfile);
   console.log('🔍 updateBaseInfo: eventsData 是否存在 =', !!finalEventsData);
@@ -1555,9 +1555,9 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
   } else {
     console.warn('⚠️ updateBaseInfo: videoProfile 为空，不显示视频 profile');
   }
-  
+
   if (privilegesText !== null) {
-    if (privilegesText !== '发流权限正常'){
+    if (privilegesText !== '发流权限正常') {
       // 黑色高亮并加粗
       const privilegesIcon = '🚫';
       baseInfoHTML += `<div class="info-item"><span style="color:#000000;font-weight:bold;">${privilegesIcon} ${privilegesText}</span></div>`;
@@ -1568,20 +1568,20 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
 
   // 更新内容
   baseInfoElement.innerHTML = baseInfoHTML;
-  
+
   // 为 3A状态 标签添加鼠标悬浮事件
   const statusTag = baseInfoElement.querySelector('.status-tag');
   if (statusTag) {
     console.log('✅ 找到 status-tag 元素，准备添加事件监听器');
-    
+
     // 移除旧的事件监听器（如果存在）
     const newStatusTag = statusTag.cloneNode(true);
     statusTag.parentNode.replaceChild(newStatusTag, statusTag);
-    
+
     // 1秒后检查 Hw3A 和 Aec 状态
     setTimeout(() => {
       console.log('⏱️ 1秒后检查 3A 状态');
-      
+
       // 从 responseText 的 A NEARIN APM STATUS 中解析状态
       let statusStr = '';
       if (responseText) {
@@ -1593,10 +1593,10 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
       // 解析状态文本，检查 Hw3A 和 Aec 状态
       const hw3aStatusOff = statusStr.includes('Hw3A: Off');
       const aecStatusOff = statusStr.includes('Aec: Off');
-      
+
       console.log('🔍 Hw3A 状态:', hw3aStatusOff ? 'Off' : 'On');
       console.log('🔍 Aec 状态:', aecStatusOff ? 'Off' : 'On');
-      
+
       if (hw3aStatusOff && aecStatusOff) {
         console.log('⚠️ Hw3A 和 Aec 都是 Off，修改标签背景色');
         newStatusTag.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
@@ -1606,56 +1606,56 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
         newStatusTag.style.backgroundColor = 'rgba(128, 128, 128, 0.5)';
       }
     }, 1000);
-    
+
     // 保存 responseText 到 data 属性，确保事件处理器可以访问
     newStatusTag.setAttribute('data-response-text', responseText || '');
-    
+
     // 添加鼠标悬浮事件
-    newStatusTag.addEventListener('mouseenter', function(event) {
+    newStatusTag.addEventListener('mouseenter', function (event) {
       console.log('🖱️ 鼠标悬浮到 3A状态 标签');
-      
+
       // 从 data 属性或闭包中获取 responseText
       const responseTextData = this.getAttribute('data-response-text') || responseText;
       console.log('📝 responseText 类型:', typeof responseTextData);
       console.log('📝 responseText 长度:', responseTextData ? responseTextData.length : 0);
-      
+
       if (!responseTextData) {
         console.warn('⚠️ responseText 为空');
         showTooltip(event, '未找到数据');
         return;
       }
-      
+
       const apmStatusValues = getApmStatus(responseTextData);
       console.log('📊 APM Status 值:', apmStatusValues);
-      
+
       if (apmStatusValues && apmStatusValues.length > 0) {
         // 使用第一个值解析状态
         const firstValue = apmStatusValues[0];
         console.log('📊 第一个值:', firstValue);
-        
+
         let status = formatApmStatus(firstValue);
         console.log('📝 解析后的状态:', status);
-        
+
         // 检查值是否唯一
         const isUnique = apmStatusValues.every(value => value === firstValue);
         if (!isUnique) {
           status += '【有变化】';
         }
-        
+
         console.log('✅ 准备显示悬浮窗');
         showTooltip(event, status);
-        
-      
+
+
       } else {
         console.warn('⚠️ 未找到 APM Status 数据或数据为空');
         showTooltip(event, '未找到 A NEARIN APM STATUS 数据');
       }
     });
-    
-    newStatusTag.addEventListener('mouseleave', function() {
+
+    newStatusTag.addEventListener('mouseleave', function () {
       console.log('🖱️ 鼠标离开 3A状态 标签');
       hideTooltip();
-      
+
       // 鼠标离开时根据 Hw3A 和 Aec 状态恢复背景色
       const responseTextData = this.getAttribute('data-response-text') || responseText;
       let statusStr = '';
@@ -1667,7 +1667,7 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
       }
       const hw3aStatusOff = statusStr.includes('Hw3A: Off');
       const aecStatusOff = statusStr.includes('Aec: Off');
-      
+
       if (hw3aStatusOff && aecStatusOff) {
         console.log('🔄 恢复标签背景色（Hw3A 和 Aec 都是 Off）');
         this.style.backgroundColor = 'rgba(255, 0, 0, 0.3)';
@@ -1676,7 +1676,7 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
         this.style.backgroundColor = 'rgba(128, 128, 128, 0.5)';
       }
     });
-    
+
     newStatusTag.addEventListener('mousemove', (event) => {
       // 更新悬浮窗位置
       const tooltip = document.querySelector('.apm-status-tooltip');
@@ -1685,7 +1685,7 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
         const y = event.clientY + 10;
         tooltip.style.left = `${x}px`;
         tooltip.style.top = `${y}px`;
-        
+
         // 确保不超出视窗
         const rect = tooltip.getBoundingClientRect();
         if (rect.right > window.innerWidth) {
@@ -1699,20 +1699,20 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
   } else {
     console.warn('⚠️ 未找到 .status-tag 元素');
   }
-  
+
   // 为 AEC状态 标签添加鼠标悬浮事件
   const aecStatusTag = baseInfoElement.querySelector('.aec-status-tag');
   if (aecStatusTag) {
     console.log('✅ 找到 aec-status-tag 元素，准备添加事件监听器');
-    
+
     // 移除旧的事件监听器（如果存在）
     const newAecStatusTag = aecStatusTag.cloneNode(true);
     aecStatusTag.parentNode.replaceChild(newAecStatusTag, aecStatusTag);
-    
+
     // 1秒后检查 Aec Configuration 状态
     setTimeout(() => {
       console.log('⏱️ 1秒后检查 Aec Configuration 状态');
-      
+
       // 检查 Aec Configuration，如果是 Off 则修改标签背景色
       let aecConfigOff = false;
       if (responseText) {
@@ -1735,42 +1735,42 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
         newAecStatusTag.style.backgroundColor = 'rgba(128, 128, 128, 0.5)';
       }
     }, 1000);
-    
+
     // 保存 responseText 到 data 属性，确保事件处理器可以访问
     newAecStatusTag.setAttribute('data-response-text', responseText || '');
-    
+
     // 添加鼠标悬浮事件
-    newAecStatusTag.addEventListener('mouseenter', function(event) {
+    newAecStatusTag.addEventListener('mouseenter', function (event) {
       console.log('🖱️ 鼠标悬浮到 AEC状态 标签');
-      
+
       // 从 data 属性或闭包中获取 responseText
       const responseTextData = this.getAttribute('data-response-text') || responseText;
       console.log('📝 responseText 类型:', typeof responseTextData);
       console.log('📝 responseText 长度:', responseTextData ? responseTextData.length : 0);
-      
+
       if (!responseTextData) {
         console.warn('⚠️ responseText 为空');
         showTooltip(event, '未找到数据');
         return;
       }
-      
+
       const aecConfigValues = getAecConfiguration(responseTextData);
       console.log('📊 AEC Configuration 值:', aecConfigValues);
-      
+
       if (aecConfigValues && aecConfigValues.length > 0) {
         // 使用第一个值解析状态
         const firstValue = aecConfigValues[0];
         console.log('📊 第一个值:', firstValue);
-        
+
         let status = formatAEC(firstValue);
         console.log('📝 解析后的状态:', status);
-        
+
         // 检查值是否唯一
         const isUnique = aecConfigValues.every(value => value === firstValue);
         if (!isUnique) {
           status += '<br>【有变化】';
         }
-        
+
         console.log('✅ 准备显示悬浮窗');
         showTooltip(event, status);
       } else {
@@ -1778,8 +1778,8 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
         showTooltip(event, '未找到 Aec Configuration 数据');
       }
     });
-    
-    newAecStatusTag.addEventListener('mouseleave', function() {
+
+    newAecStatusTag.addEventListener('mouseleave', function () {
       console.log('🖱️ 鼠标离开 AEC状态 标签');
       hideTooltip();
 
@@ -1801,7 +1801,7 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
         this.style.backgroundColor = 'rgba(128, 128, 128, 0.5)';
       }
     });
-    
+
     newAecStatusTag.addEventListener('mousemove', (event) => {
       // 更新悬浮窗位置
       const tooltip = document.querySelector('.apm-status-tooltip');
@@ -1810,7 +1810,7 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
         const y = event.clientY + 10;
         tooltip.style.left = `${x}px`;
         tooltip.style.top = `${y}px`;
-        
+
         // 确保不超出视窗
         const rect = tooltip.getBoundingClientRect();
         if (rect.right > window.innerWidth) {
@@ -1824,7 +1824,7 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
   } else {
     console.warn('⚠️ 未找到 .aec-status-tag 元素');
   }
-  
+
   // 为 IP 地址元素设置悬浮事件
   if (localWanIpArray && localWanIpArray.length > 0) {
     // 延迟执行，确保 DOM 已更新
@@ -1834,34 +1834,34 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
       updateIpDisplayWithLine();
     }, 100);
   }
-  
+
   // 为摄像头状态标签添加鼠标悬浮事件
   const cameraStatusTag = baseInfoElement.querySelector('.camera-status-tag');
   if (cameraStatusTag) {
     console.log('✅ 找到 camera-status-tag 元素，准备添加事件监听器');
-    
+
     // 移除旧的事件监听器（如果存在）
     const newCameraStatusTag = cameraStatusTag.cloneNode(true);
     cameraStatusTag.parentNode.replaceChild(newCameraStatusTag, cameraStatusTag);
-    
+
     // 保存 eventsData 到 data 属性，确保事件处理器可以访问
     newCameraStatusTag.setAttribute('data-events-data', eventsData ? (typeof eventsData === 'string' ? eventsData : JSON.stringify(eventsData)) : '');
-    
+
     // 添加鼠标悬浮事件
-    newCameraStatusTag.addEventListener('mouseenter', function(event) {
+    newCameraStatusTag.addEventListener('mouseenter', function (event) {
       console.log('🖱️ 鼠标悬浮到摄像头状态标签');
-      
+
       // 从 data 属性或闭包中获取 eventsData
       let eventsDataStr = this.getAttribute('data-events-data') || (eventsData ? (typeof eventsData === 'string' ? eventsData : JSON.stringify(eventsData)) : '');
       console.log('📝 eventsData 类型:', typeof eventsDataStr);
       console.log('📝 eventsData 长度:', eventsDataStr ? eventsDataStr.length : 0);
-      
+
       if (!eventsDataStr) {
         console.warn('⚠️ eventsData 为空');
         showTooltip(event, '未找到摄像头数据');
         return;
       }
-      
+
       let parsedEventsData;
       try {
         parsedEventsData = typeof eventsDataStr === 'string' ? JSON.parse(eventsDataStr) : eventsDataStr;
@@ -1870,10 +1870,10 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
         showTooltip(event, '解析摄像头数据失败');
         return;
       }
-      
+
       const cameraItems = getCameraInfo(parsedEventsData);
       console.log('📊 摄像头信息:', cameraItems);
-      
+
       if (cameraItems && cameraItems.length > 0) {
         const cameraInfoText = formatCameraInfo(cameraItems);
         console.log('✅ 准备显示摄像头信息悬浮窗');
@@ -1883,12 +1883,12 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
         showTooltip(event, '未找到摄像头信息');
       }
     });
-    
-    newCameraStatusTag.addEventListener('mouseleave', function() {
+
+    newCameraStatusTag.addEventListener('mouseleave', function () {
       console.log('🖱️ 鼠标离开摄像头状态标签');
       hideTooltip();
     });
-    
+
     newCameraStatusTag.addEventListener('mousemove', (event) => {
       // 更新悬浮窗位置
       const tooltip = document.querySelector('.apm-status-tooltip');
@@ -1897,7 +1897,7 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
         const y = event.clientY + 10;
         tooltip.style.left = `${x}px`;
         tooltip.style.top = `${y}px`;
-        
+
         // 确保不超出视窗
         const rect = tooltip.getBoundingClientRect();
         if (rect.right > window.innerWidth) {
@@ -1911,34 +1911,34 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
   } else {
     console.warn('⚠️ 未找到 .camera-status-tag 元素');
   }
-  
+
   // 为音频设备状态标签添加鼠标悬浮事件
   const audioDeviceStatusTag = baseInfoElement.querySelector('.audio-device-status-tag');
   if (audioDeviceStatusTag) {
     console.log('✅ 找到 audio-device-status-tag 元素，准备添加事件监听器');
-    
+
     // 移除旧的事件监听器（如果存在）
     const newAudioDeviceStatusTag = audioDeviceStatusTag.cloneNode(true);
     audioDeviceStatusTag.parentNode.replaceChild(newAudioDeviceStatusTag, audioDeviceStatusTag);
-    
+
     // 保存 eventsData 到 data 属性，确保事件处理器可以访问
     newAudioDeviceStatusTag.setAttribute('data-events-data', eventsData ? (typeof eventsData === 'string' ? eventsData : JSON.stringify(eventsData)) : '');
-    
+
     // 添加鼠标悬浮事件
-    newAudioDeviceStatusTag.addEventListener('mouseenter', function(event) {
+    newAudioDeviceStatusTag.addEventListener('mouseenter', function (event) {
       console.log('🖱️ 鼠标悬浮到音频设备状态标签');
-      
+
       // 从 data 属性或闭包中获取 eventsData
       let eventsDataStr = this.getAttribute('data-events-data') || (eventsData ? (typeof eventsData === 'string' ? eventsData : JSON.stringify(eventsData)) : '');
       console.log('📝 eventsData 类型:', typeof eventsDataStr);
       console.log('📝 eventsData 长度:', eventsDataStr ? eventsDataStr.length : 0);
-      
+
       if (!eventsDataStr) {
         console.warn('⚠️ eventsData 为空');
         showTooltip(event, '未找到音频设备数据');
         return;
       }
-      
+
       let parsedEventsData;
       try {
         parsedEventsData = typeof eventsDataStr === 'string' ? JSON.parse(eventsDataStr) : eventsDataStr;
@@ -1947,10 +1947,10 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
         showTooltip(event, '解析音频设备数据失败');
         return;
       }
-      
+
       const deviceStatChanges = getDeviceStatChange(parsedEventsData);
       console.log('📊 音频设备状态变化信息:', deviceStatChanges);
-      
+
       if (deviceStatChanges && deviceStatChanges.length > 0) {
         const deviceStatChangeText = formatDeviceStatChange(deviceStatChanges);
         console.log('✅ 准备显示音频设备状态变化悬浮窗');
@@ -1960,12 +1960,12 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
         showTooltip(event, '未找到音频设备状态变化信息');
       }
     });
-    
-    newAudioDeviceStatusTag.addEventListener('mouseleave', function() {
+
+    newAudioDeviceStatusTag.addEventListener('mouseleave', function () {
       console.log('🖱️ 鼠标离开音频设备状态标签');
       hideTooltip();
     });
-    
+
     newAudioDeviceStatusTag.addEventListener('mousemove', (event) => {
       // 更新悬浮窗位置
       const tooltip = document.querySelector('.apm-status-tooltip');
@@ -1974,7 +1974,7 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
         const y = event.clientY + 10;
         tooltip.style.left = `${x}px`;
         tooltip.style.top = `${y}px`;
-        
+
         // 确保不超出视窗
         const rect = tooltip.getBoundingClientRect();
         if (rect.right > window.innerWidth) {
@@ -1988,11 +1988,11 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
   } else {
     console.warn('⚠️ 未找到 .audio-device-status-tag 元素');
   }
-  
-  console.log('✅ Base Info 已更新:', { 
+
+  console.log('✅ Base Info 已更新:', {
     channelProfile,
     channelProfileText: getChannelProfileDisplayText(channelProfile),
-    roleValues, 
+    roleValues,
     roleText: getRoleDisplayText(roleValues),
     muteStatusValues,
     muteText: getMuteStatusDisplayText(muteStatusValues),
