@@ -2985,6 +2985,235 @@ function loadChartJsFallback() {
   });
 }
 
+// 添加点击外部区域缩小为圆形的功能
+function addClickOutsideToShrink(chartContainer) {
+  // 检查是否已经缩小
+  let isShrunk = false;
+  // 保存原始样式字符串
+  let originalCssText = '';
+  // 保存子元素的原始样式
+  let originalChildStyles = [];
+  // 保存原始位置
+  let originalPosition = {};
+  // 拖拽相关变量
+  let isDragging = false;
+  let dragStartX = 0;
+  let dragStartY = 0;
+  let dragStartLeft = 0;
+  let dragStartTop = 0;
+  
+  // 添加拖拽功能
+  function addDragFunctionality() {
+    chartContainer.addEventListener('mousedown', function(e) {
+      if (!isShrunk) return;
+      
+      e.preventDefault();
+      isDragging = true;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      
+      const rect = chartContainer.getBoundingClientRect();
+      dragStartLeft = rect.left;
+      dragStartTop = rect.top;
+      
+      chartContainer.style.cursor = 'grabbing';
+    });
+    
+    document.addEventListener('mousemove', function(e) {
+      if (!isDragging || !isShrunk) return;
+      
+      e.preventDefault();
+      const deltaX = e.clientX - dragStartX;
+      const deltaY = e.clientY - dragStartY;
+      
+      chartContainer.style.left = (dragStartLeft + deltaX) + 'px';
+      chartContainer.style.top = (dragStartTop + deltaY) + 'px';
+      chartContainer.style.transform = 'none';
+    });
+    
+    document.addEventListener('mouseup', function() {
+      if (isDragging) {
+        isDragging = false;
+        chartContainer.style.cursor = 'grab';
+      }
+    });
+  }
+  
+  // 初始化拖拽功能
+  addDragFunctionality();
+  
+  // 点击外部区域的处理函数
+  function handleClickOutside(event) {
+    // 如果正在拖拽，不处理点击
+    if (isDragging) {
+      return;
+    }
+    
+    // 如果已经缩小，点击圆形可以恢复
+    if (isShrunk) {
+      const rect = chartContainer.getBoundingClientRect();
+      const clickX = event.clientX;
+      const clickY = event.clientY;
+      
+      // 检查点击是否在圆形区域内
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const distance = Math.sqrt(Math.pow(clickX - centerX, 2) + Math.pow(clickY - centerY, 2));
+      
+      if (distance <= 25) { // 25px 是半径
+        // 恢复原始大小
+        chartContainer.classList.remove('shrink-to-circle');
+        chartContainer.style.cursor = '';
+        
+        // 添加 transition
+        chartContainer.style.transition = 'all 0.5s ease-out';
+        
+        // 使用 requestAnimationFrame 确保 transition 已应用
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            // 恢复原始样式
+            if (originalCssText) {
+              // 先恢复基本样式，但保留 transition
+              chartContainer.style.cssText = originalCssText;
+              chartContainer.style.transition = 'all 0.5s ease-out';
+              // 恢复原始位置（如果原本是居中定位，需要恢复 transform）
+              if (originalPosition.left !== undefined && originalPosition.left !== 'auto') {
+                chartContainer.style.left = originalPosition.left;
+              }
+              if (originalPosition.top !== undefined && originalPosition.top !== 'auto') {
+                chartContainer.style.top = originalPosition.top;
+              }
+              if (originalPosition.transform && originalPosition.transform !== 'none') {
+                chartContainer.style.transform = originalPosition.transform;
+              }
+            }
+            
+            // 恢复子元素可见性
+            Array.from(chartContainer.children).forEach((child, index) => {
+              child.style.transition = 'opacity 0.5s ease-out';
+              if (originalChildStyles[index]) {
+                child.style.opacity = originalChildStyles[index].opacity || '';
+                child.style.pointerEvents = originalChildStyles[index].pointerEvents || '';
+              } else {
+                child.style.opacity = '';
+                child.style.pointerEvents = '';
+              }
+            });
+          });
+        });
+        
+        isShrunk = false;
+        
+        // 动画结束后移除 transition
+        setTimeout(() => {
+          chartContainer.style.transition = '';
+        }, 500);
+        
+        // 重新添加点击外部监听器
+        setTimeout(() => {
+          document.addEventListener('click', handleClickOutside);
+        }, 100);
+      }
+      return;
+    }
+    
+    // 检查点击的目标元素
+    const target = event.target;
+    
+    // 如果点击的是容器内部或其子元素，不处理
+    if (chartContainer.contains(target)) {
+      return;
+    }
+    
+    // 如果点击的是其他 combined-audio-analysis-container 或 fallback-chart 内部，不处理
+    const combinedContainer = target.closest('.combined-audio-analysis-container');
+    const fallbackChart = target.closest('.fallback-chart');
+    
+    // 如果找到其他容器（不是当前容器），也不处理
+    if ((combinedContainer && combinedContainer !== chartContainer) || 
+        (fallbackChart && fallbackChart !== chartContainer)) {
+      return;
+    }
+    
+    // 获取 close-chart 按钮的位置
+    const closeButton = chartContainer.querySelector('.close-chart');
+    let targetLeft, targetTop;
+    
+    if (closeButton) {
+      const closeRect = closeButton.getBoundingClientRect();
+      // 计算按钮中心位置，然后减去圆的半径（25px）来定位圆的左上角
+      targetLeft = closeRect.left + closeRect.width / 2 - 25;
+      targetTop = closeRect.top + closeRect.height / 2 - 25;
+    } else {
+      // 如果没有找到按钮，使用容器的右上角
+      const containerRect = chartContainer.getBoundingClientRect();
+      targetLeft = containerRect.right - 50;
+      targetTop = containerRect.top;
+    }
+    
+    // 保存原始样式字符串
+    originalCssText = chartContainer.style.cssText;
+    
+    // 保存原始位置
+    const computedStyle = window.getComputedStyle(chartContainer);
+    originalPosition = {
+      left: computedStyle.left,
+      top: computedStyle.top,
+      transform: computedStyle.transform
+    };
+    
+    // 保存子元素的原始样式
+    originalChildStyles = Array.from(chartContainer.children).map(child => ({
+      opacity: child.style.opacity || '',
+      pointerEvents: child.style.pointerEvents || ''
+    }));
+    
+    // 点击外部区域，缩小为圆形
+    chartContainer.classList.add('shrink-to-circle');
+    chartContainer.style.cursor = 'grab';
+    
+    // 添加 transition
+    chartContainer.style.transition = 'all 0.5s ease-out';
+    
+    // 使用 requestAnimationFrame 确保 transition 已应用后再设置目标样式
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        chartContainer.style.width = '50px';
+        chartContainer.style.height = '50px';
+        chartContainer.style.maxWidth = '50px';
+        chartContainer.style.borderRadius = '50%';
+        chartContainer.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+        chartContainer.style.overflow = 'hidden';
+        chartContainer.style.left = targetLeft + 'px';
+        chartContainer.style.top = targetTop + 'px';
+        chartContainer.style.transform = 'none';
+      });
+    });
+    
+    // 隐藏子元素
+    Array.from(chartContainer.children).forEach(child => {
+      child.style.transition = 'opacity 0.5s ease-out';
+      child.style.opacity = '0';
+      child.style.pointerEvents = 'none';
+    });
+    
+    isShrunk = true;
+    
+    // 移除点击外部监听器，避免重复触发
+    document.removeEventListener('click', handleClickOutside);
+    
+    // 添加点击圆形恢复的监听器
+    setTimeout(() => {
+      document.addEventListener('click', handleClickOutside);
+    }, 500);
+  }
+  
+  // 延迟添加监听器，避免立即触发
+  setTimeout(() => {
+    document.addEventListener('click', handleClickOutside);
+  }, 100);
+}
+
 // 创建组合音频分析图表
 function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalLevelNearoutData, recordSignalVolumeData, playoutSignalVolumeData, errorCodeData) {
   console.log('createCombinedAudioAnalysisChart', aecDelayData, signalLevelData, signalLevelNearoutData, recordSignalVolumeData, playoutSignalVolumeData, errorCodeData);
@@ -3222,6 +3451,62 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalL
           opacity: 1;
           transform: translate(-50%, -50%);
         }
+      }
+      
+      @keyframes shrinkToCircle {
+        from {
+          width: 90%;
+          max-width: 1000px;
+          height: auto;
+          border-radius: 12px;
+          transform: translate(-50%, -50%);
+        }
+        to {
+          width: 50px;
+          height: 50px;
+          border-radius: 50%;
+          transform: translate(-50%, -50%);
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          overflow: hidden;
+        }
+      }
+      
+      @keyframes expandFromCircle {
+        from {
+          width: 50px;
+          height: 50px;
+          border-radius: 50%;
+          transform: translate(-50%, -50%);
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          overflow: hidden;
+        }
+        to {
+          width: 90%;
+          max-width: 1000px;
+          height: auto;
+          border-radius: 12px;
+          transform: translate(-50%, -50%);
+          background: white;
+          overflow: visible;
+        }
+      }
+      
+      .combined-audio-analysis-container.shrink-to-circle {
+        animation: shrinkToCircle 0.5s ease-out forwards;
+      }
+      
+      .combined-audio-analysis-container.shrink-to-circle > * {
+        opacity: 0;
+        pointer-events: none;
+      }
+      
+      .combined-audio-analysis-container.expand-from-circle {
+        animation: expandFromCircle 0.5s ease-out forwards;
+      }
+      
+      .combined-audio-analysis-container.expand-from-circle > * {
+        opacity: 1;
+        pointer-events: auto;
       }
       
       .combined-audio-analysis-container .chart-header {
@@ -3872,6 +4157,9 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalL
     document.head.appendChild(style);
 
     document.body.appendChild(chartContainer);
+    
+    // 添加点击外部区域缩小为圆形的功能
+    addClickOutsideToShrink(chartContainer);
   }
 
   // 2) 创建各个图表
@@ -4658,6 +4946,62 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
         }
       }
       
+      @keyframes shrinkToCircle {
+        from {
+          width: 90%;
+          max-width: 1000px;
+          height: auto;
+          border-radius: 12px;
+          transform: translate(-50%, -50%);
+        }
+        to {
+          width: 50px;
+          height: 50px;
+          border-radius: 50%;
+          transform: translate(-50%, -50%);
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          overflow: hidden;
+        }
+      }
+      
+      @keyframes expandFromCircle {
+        from {
+          width: 50px;
+          height: 50px;
+          border-radius: 50%;
+          transform: translate(-50%, -50%);
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          overflow: hidden;
+        }
+        to {
+          width: 90%;
+          max-width: 1000px;
+          height: auto;
+          border-radius: 12px;
+          transform: translate(-50%, -50%);
+          background: white;
+          overflow: visible;
+        }
+      }
+      
+      .combined-audio-analysis-container.shrink-to-circle {
+        animation: shrinkToCircle 0.5s ease-out forwards;
+      }
+      
+      .combined-audio-analysis-container.shrink-to-circle > * {
+        opacity: 0;
+        pointer-events: none;
+      }
+      
+      .combined-audio-analysis-container.expand-from-circle {
+        animation: expandFromCircle 0.5s ease-out forwards;
+      }
+      
+      .combined-audio-analysis-container.expand-from-circle > * {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      
       .combined-audio-analysis-container .chart-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
@@ -5411,6 +5755,9 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
   }
 
   document.body.appendChild(chartContainer);
+  
+  // 添加点击外部区域缩小为圆形的功能
+  addClickOutsideToShrink(chartContainer);
 
   // 为 fallback-chart 添加拖拽功能
   if (chartContainer.classList.contains('fallback-chart')) {
