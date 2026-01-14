@@ -7,15 +7,15 @@ function injectExtCounterScript() {
     return;
   }
   window.__extCounterScriptInjected = true;
-  
+
   try {
     const script = document.createElement('script');
     script.src = chrome.runtime.getURL('src/ext-counter.js');
-    script.onload = function() {
+    script.onload = function () {
       console.log('✅ ext-counter.js 已成功注入到页面上下文');
       this.remove(); // 移除 script 标签
     };
-    script.onerror = function() {
+    script.onerror = function () {
       console.error('❌ 注入 ext-counter.js 失败');
       this.remove();
     };
@@ -34,15 +34,15 @@ function injectInjectedScript() {
     return;
   }
   window.__injectedScriptInjected = true;
-  
+
   try {
     const script = document.createElement('script');
     script.src = chrome.runtime.getURL('src/injected.js');
-    script.onload = function() {
+    script.onload = function () {
       console.log('✅ injected.js 已成功注入到页面上下文');
       this.remove(); // 移除 script 标签
     };
-    script.onerror = function() {
+    script.onerror = function () {
       console.error('❌ 注入 injected.js 失败');
       this.remove();
     };
@@ -55,26 +55,26 @@ function injectInjectedScript() {
 // ============================================
 // 监听来自 injected.js 的消息
 // ============================================
-(function() {
+(function () {
   // 防止重复设置
   if (window.__contentScriptMessageListenerSetup) {
     return;
   }
   window.__contentScriptMessageListenerSetup = true;
-  
+
   // 初始化存储 counters 请求的 Map
   if (!window.countersInterceptedRequests) {
     window.countersInterceptedRequests = new Map();
   }
-  
+
   // 监听来自 injected script 的消息
-  window.addEventListener('message', function(event) {
+  window.addEventListener('message', function (event) {
     // 安全检查：只处理来自同源的消息
     // 注意：由于 injected script 在页面上下文中运行，event.source 是 window
     if (event.data && event.data.source === 'INJECTED_SCRIPT') {
       const messageType = event.data.type;
       const data = event.data.data;
-      
+
       // 处理保存 counters 数据的请求
       if (messageType === 'SAVE_COUNTERS_DATA') {
         if (data && data.sid && data.url && data.data) {
@@ -94,7 +94,7 @@ function injectInjectedScript() {
         return; // 处理完就返回，不继续处理
       }
 
-      
+
       if (messageType === 'SAVE_EVENTS_DATA') {
         if (data && data.sid && data.url && data.data) {
           (async () => {
@@ -115,9 +115,18 @@ function injectInjectedScript() {
         return; // 处理完就返回，不继续处理
       }
 
+      // 处理保存用户信息请求
+      if (messageType === 'SAVE_USER_INFO') {
+        if (data && data.name) {
+          window.argusUserInfo = data;
+          console.log('[Content Script] 已保存用户信息:', data.name);
+        }
+        return;
+      }
+
       if (messageType === 'NETWORK_REQUEST') {
         console.log('📨 [Content Script] 收到来自 injected script 的网络请求数据:', data);
-        
+
         // 存储请求信息
         if (data.url) {
           window.countersInterceptedRequests.set(data.url, {
@@ -135,7 +144,7 @@ function injectInjectedScript() {
             timeout: data.timeout,
             errorMessage: data.errorMessage
           });
-          
+
           // console.log(`✅ [Content Script] 已存储 ${data.type} 请求数据:`, {
           //   url: data.url,
           //   status: data.status,
@@ -165,7 +174,7 @@ function injectInjectedScript() {
           }
 
 
-          
+
           // 如果有响应内容，尝试解析并打印
           // if (data.responseText && !data.error && !data.timeout) {
           //   console.log('📄 [Content Script] 响应内容:');
@@ -176,7 +185,7 @@ function injectInjectedScript() {
           //     console.log(data.responseText);
           //   }
           // }
-          
+
           // 触发自定义事件，通知其他代码有新的网络请求数据
           window.dispatchEvent(new CustomEvent('networkRequestCaptured', {
             detail: data
@@ -185,7 +194,7 @@ function injectInjectedScript() {
       }
     }
   });
-  
+
   console.log('✅ [Content Script] 消息监听器已设置完成');
 })();
 
@@ -216,13 +225,30 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
         }
       }
     );
+
+    // 主动获取用户信息
+    chrome.runtime.sendMessage(
+      { type: 'FETCH_USER_INFO' },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          console.warn('⚠️ 获取用户信息失败:', chrome.runtime.lastError.message);
+          return;
+        }
+        if (response && response.success && response.data) {
+          window.argusUserInfo = response.data;
+          console.log('✅ 已获取并保存用户信息:', response.data.name);
+        } else {
+          console.warn('⚠️ 获取用户信息失败:', response?.error || '未知错误');
+        }
+      }
+    );
   } catch (error) {
     console.warn('⚠️ 启动 Background 网络监听时出错:', error);
   }
 }
 
 // 全局函数定义 - 确保在任何其他代码之前定义
-window.updateIssueStatus = async function(issueType, isChecked) {
+window.updateIssueStatus = async function (issueType, isChecked) {
   console.log('updateIssueStatus called:', issueType, isChecked);
 
   // 初始化全局状态对象
@@ -247,7 +273,7 @@ window.updateIssueStatus = async function(issueType, isChecked) {
   if (issueType === 'isNoSound' && isChecked) {
     // 获取 sid：优先从全局变量获取，如果没有则尝试从页面中获取
     let sid = window.currentSid || null;
-    
+
     // 如果全局变量中没有，尝试从页面中获取
     if (!sid) {
       // 尝试查找最近的 auto-check 按钮，然后获取其对应的 sid
@@ -269,7 +295,7 @@ window.updateIssueStatus = async function(issueType, isChecked) {
         }
       }
     }
-    
+
     console.log('checkDecodeErrors called with sid:', sid);
     await checkDecodeErrors(sid);
     await checkRecordVolume(sid)
@@ -413,7 +439,7 @@ async function checkDecodeErrors(sid = null) {
     const unsupportedDecodes = [];
     for (const errorItem of decodeErrorItems) {
       const diagDescription = errorItem.details.diagDescription;
-      
+
       // 解析 diagDescription，格式如 "{\"153012135\":\"downlink.noSound.decodeError.unknown\"}"
       let peerId = null;
       try {
@@ -437,9 +463,9 @@ async function checkDecodeErrors(sid = null) {
       // 查找 firstAudioPacketReceived 且 peer 匹配的项
       let codecValue = null;
       for (const item of eventsData) {
-        if (item && item.details && 
-            item.details.nm === 'firstAudioPacketReceived' && 
-            String(item.details.peer) === String(peerId)) {
+        if (item && item.details &&
+          item.details.nm === 'firstAudioPacketReceived' &&
+          String(item.details.peer) === String(peerId)) {
           codecValue = item.details.codec;
           break;
         }
@@ -623,7 +649,7 @@ function showVolumeWarningPopup(message) {
   // 创建弹窗容器
   const popup = document.createElement('div');
   popup.className = 'volume-warning-popup';
-  
+
   popup.innerHTML = `
     <div class="popup-header">
       <h3>⚠️ 音量警告</h3>
@@ -635,7 +661,7 @@ function showVolumeWarningPopup(message) {
       </div>
     </div>
   `;
-  
+
   // 添加样式
   popup.style.cssText = `
     position: fixed;
@@ -652,7 +678,7 @@ function showVolumeWarningPopup(message) {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     animation: slideIn 0.3s ease-out;
   `;
-  
+
   // 添加CSS样式
   const style = document.createElement('style');
   if (!document.getElementById('volume-warning-popup-style')) {
@@ -718,10 +744,10 @@ function showVolumeWarningPopup(message) {
     `;
     document.head.appendChild(style);
   }
-  
+
   // 添加到页面
   document.body.appendChild(popup);
-  
+
   // 点击关闭按钮
   const closeBtn = popup.querySelector('.close-popup');
   if (closeBtn) {
@@ -729,7 +755,7 @@ function showVolumeWarningPopup(message) {
       popup.remove();
     });
   }
-  
+
   // 点击外部区域关闭
   popup.addEventListener('click', (e) => {
     if (e.target === popup) {
@@ -746,7 +772,7 @@ function showDecodeErrorPopup(unsupportedDecodes) {
   // 创建弹窗容器
   const popup = document.createElement('div');
   popup.className = 'decode-error-popup';
-  
+
   const messages = unsupportedDecodes.map(item => {
     const uidText = item.uid ? `${item.uid}` : '未知用户';
     return `${uidText}不支持对${item.peer}的解码：${item.codecValue}/${item.codecName}`;
@@ -763,7 +789,7 @@ function showDecodeErrorPopup(unsupportedDecodes) {
       </div>
     </div>
   `;
-  
+
   // 添加样式
   popup.style.cssText = `
     position: fixed;
@@ -780,7 +806,7 @@ function showDecodeErrorPopup(unsupportedDecodes) {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     animation: slideIn 0.3s ease-out;
   `;
-  
+
   // 添加CSS样式
   const style = document.createElement('style');
   if (!document.getElementById('decode-error-popup-style')) {
@@ -846,10 +872,10 @@ function showDecodeErrorPopup(unsupportedDecodes) {
     `;
     document.head.appendChild(style);
   }
-  
+
   // 添加到页面
   document.body.appendChild(popup);
-  
+
   // 点击关闭按钮
   const closeBtn = popup.querySelector('.close-popup');
   if (closeBtn) {
@@ -857,7 +883,7 @@ function showDecodeErrorPopup(unsupportedDecodes) {
       popup.remove();
     });
   }
-  
+
   // 点击外部区域关闭
   popup.addEventListener('click', (e) => {
     if (e.target === popup) {
@@ -881,32 +907,32 @@ function getIssueDisplayName(issueType) {
 
 // 备用计算函数定义（在 src/utils.js 模块加载之前使用）
 // 这些函数在 src/utils.js 加载完成后会被覆盖
-window.calculateAverageDelay = function(data) {
+window.calculateAverageDelay = function (data) {
   const validData = data.filter(point => point.value !== null && point.value !== undefined);
   if (validData.length === 0) return 0;
   const sum = validData.reduce((acc, point) => acc + point.value, 0);
   return Math.round(sum / validData.length);
 };
 
-window.calculateMaxDelay = function(data) {
+window.calculateMaxDelay = function (data) {
   const validData = data.filter(point => point.value !== null && point.value !== undefined);
   if (validData.length === 0) return 0;
   return Math.max(...validData.map(point => point.value));
 };
 
-window.calculateChangeCount = function(data) {
+window.calculateChangeCount = function (data) {
   const validData = data.filter(point => point.value !== null && point.value !== undefined);
   if (validData.length <= 1) return 0;
   let count = 0;
   for (let i = 1; i < validData.length; i++) {
-    if (validData[i].value !== validData[i-1].value) {
+    if (validData[i].value !== validData[i - 1].value) {
       count++;
     }
   }
   return count;
 };
 
-window.calculateChangeFrequency = function(data) {
+window.calculateChangeFrequency = function (data) {
   const validData = data.filter(point => point.value !== null && point.value !== undefined);
   if (validData.length <= 1) return '0';
   const changeCount = window.calculateChangeCount(data);
@@ -918,7 +944,7 @@ window.calculateChangeFrequency = function(data) {
 };
 
 // 加载指标分析模块
-(function() {
+(function () {
   console.log('开始加载指标分析模块...');
 
   // 需要加载的模块列表
@@ -992,7 +1018,7 @@ window.calculateChangeFrequency = function(data) {
 
   // 暴露模块加载状态
   window.modulesLoaded = modulesLoaded;
-  window.checkModulesLoaded = function() {
+  window.checkModulesLoaded = function () {
     return modulesLoaded;
   };
 })();
@@ -1044,11 +1070,11 @@ async function updateBaseInfoWithES6(responseText, eventsData = null) {
     
     // 使用 ES6 动态 import 导入模块
     const baseInfoModule = await import(chrome.runtime.getURL('src/base-info.js'));
-    
+
     console.log('✅ ES6 动态 import 成功');
     console.log('📝 导入的模块:', baseInfoModule);
     console.log('📝 updateBaseInfo 类型:', typeof baseInfoModule.updateBaseInfo);
-    
+
     if (responseText && typeof baseInfoModule.updateBaseInfo === 'function') {
       console.log('✅ 使用 ES6 方式调用 updateBaseInfo');
       baseInfoModule.updateBaseInfo(responseText, eventsData);
@@ -1079,7 +1105,7 @@ window.createCombinedAudioAnalysisChart = createCombinedAudioAnalysisChart;
 window.createCombinedFallbackChart = createCombinedFallbackChart;
 
 // 测试函数是否可用
-window.testUpdateIssueStatus = function() {
+window.testUpdateIssueStatus = function () {
   console.log('测试 updateIssueStatus 函数是否可用:', typeof window.updateIssueStatus);
   console.log('window 对象:', typeof window);
   console.log('updateIssueStatus 属性:', window.updateIssueStatus);
@@ -1231,7 +1257,7 @@ const AUDIO_METRICS_CONFIG = {
 
 // 根据指标名称获取配置
 function getMetricConfig(metricName) {
-  return Object.values(AUDIO_METRICS_CONFIG).find(config => 
+  return Object.values(AUDIO_METRICS_CONFIG).find(config =>
     config.name === metricName || config.name.toUpperCase() === metricName.toUpperCase()
   );
 }
@@ -1284,50 +1310,50 @@ function loadInlineIssueRules() {
 
   // 内联规则表定义（仅当外部规则表不存在时才定义）
   if (typeof window.ISSUE_RULES === 'undefined') {
-  window.ISSUE_RULES = {
-    issueTypes: {
-      isErrorCode: { name: '错误码', color: '#dc3545', icon: '🚨' },
-      isNoSound: { name: '无声', color: '#ff6b6b', icon: '🔇' },
-      isLowLevel: { name: '音量小', color: '#ffa726', icon: '🔉' },
-      isEcho: { name: '回声', color: '#f44336', icon: '🔊' },
-      isAudioStutter: { name: '音频卡顿', color: '#9c27b0', icon: '⏸️' },
-      isBlack: { name: '黑屏', color: '#000000', icon: '🖤' }
-    },
-    metricIssueRules: {
-      'Audio AEC Delay': { isErrorCode: 0, isNoSound: 0, isLowLevel: 0, isEcho: 1, isAudioStutter: 0, isBlack: 0 },
-      'Audio Signal Level Nearin': { isErrorCode: 0, isNoSound: 1, isLowLevel: 1, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
-      'Audio Signal Level Nearout': { isErrorCode: 0, isNoSound: 1, isLowLevel: 1, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
-      'A RECORD SIGNAL VOLUME': { isErrorCode: 0, isNoSound: 1, isLowLevel: 1, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
-      'A PLAYOUT SIGNAL VOLUME': { isErrorCode: 0, isNoSound: 1, isLowLevel: 1, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
-      'Chat Engine Error Code': { isErrorCode: 1, isNoSound: 0, isLowLevel: 0, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
-      'Audio Playback Frequency': { isErrorCode: 0, isNoSound: 0, isLowLevel: 0, isEcho: 0, isAudioStutter: 1, isBlack: 0 },
-      'AUDIO DOWNLINK PULL 10MS DATA TIME': { isErrorCode: 0, isNoSound: 0, isLowLevel: 0, isEcho: 0, isAudioStutter: 1, isBlack: 0 }
-    }
-  };
+    window.ISSUE_RULES = {
+      issueTypes: {
+        isErrorCode: { name: '错误码', color: '#dc3545', icon: '🚨' },
+        isNoSound: { name: '无声', color: '#ff6b6b', icon: '🔇' },
+        isLowLevel: { name: '音量小', color: '#ffa726', icon: '🔉' },
+        isEcho: { name: '回声', color: '#f44336', icon: '🔊' },
+        isAudioStutter: { name: '音频卡顿', color: '#9c27b0', icon: '⏸️' },
+        isBlack: { name: '黑屏', color: '#000000', icon: '🖤' }
+      },
+      metricIssueRules: {
+        'Audio AEC Delay': { isErrorCode: 0, isNoSound: 0, isLowLevel: 0, isEcho: 1, isAudioStutter: 0, isBlack: 0 },
+        'Audio Signal Level Nearin': { isErrorCode: 0, isNoSound: 1, isLowLevel: 1, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
+        'Audio Signal Level Nearout': { isErrorCode: 0, isNoSound: 1, isLowLevel: 1, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
+        'A RECORD SIGNAL VOLUME': { isErrorCode: 0, isNoSound: 1, isLowLevel: 1, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
+        'A PLAYOUT SIGNAL VOLUME': { isErrorCode: 0, isNoSound: 1, isLowLevel: 1, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
+        'Chat Engine Error Code': { isErrorCode: 1, isNoSound: 0, isLowLevel: 0, isEcho: 0, isAudioStutter: 0, isBlack: 0 },
+        'Audio Playback Frequency': { isErrorCode: 0, isNoSound: 0, isLowLevel: 0, isEcho: 0, isAudioStutter: 1, isBlack: 0 },
+        'AUDIO DOWNLINK PULL 10MS DATA TIME': { isErrorCode: 0, isNoSound: 0, isLowLevel: 0, isEcho: 0, isAudioStutter: 1, isBlack: 0 }
+      }
+    };
   }
 
   // 内联函数定义（仅当外部函数不存在时才定义）
   if (typeof window.getMetricIssueTypes !== 'function') {
-    window.getMetricIssueTypes = function(metricName) {
+    window.getMetricIssueTypes = function (metricName) {
       return window.ISSUE_RULES.metricIssueRules[metricName] || { isErrorCode: 0, isNoSound: 0, isLowLevel: 0, isEcho: 0, isAudioStutter: 0, isBlack: 0 };
     };
   }
 
   if (typeof window.getIssueTypeConfig !== 'function') {
-    window.getIssueTypeConfig = function(issueType) {
+    window.getIssueTypeConfig = function (issueType) {
       return window.ISSUE_RULES.issueTypes[issueType];
     };
   }
 
   if (typeof window.isMetricRelatedToIssue !== 'function') {
-    window.isMetricRelatedToIssue = function(metricName, issueType) {
+    window.isMetricRelatedToIssue = function (metricName, issueType) {
       const rules = window.getMetricIssueTypes(metricName);
       return rules[issueType] === 1;
     };
   }
 
   if (typeof window.extractMetricNameFromTitle !== 'function') {
-    window.extractMetricNameFromTitle = function(titleText) {
+    window.extractMetricNameFromTitle = function (titleText) {
       if (titleText.includes('AEC Delay')) return 'Audio AEC Delay';
       if (titleText.includes('Signal Level Nearout')) return 'Audio Signal Level Nearout';
       if (titleText.includes('Signal Level')) return 'Audio Signal Level Nearin';
@@ -1377,14 +1403,14 @@ function createAutoCheckButton() {
   button.title = '自动检查';
   // 初始状态：禁用按钮，等待 events 数据保存后才能点击
   button.disabled = true;
-  
+
   // 添加点击事件
-  button.addEventListener('click', function() {
+  button.addEventListener('click', function () {
     console.log('🔘 Auto Check 按钮被点击');
-    
+
     // 禁用所有 auto-check 按钮
     disableAutoCheckButtons();
-    
+
     // 通过 background script 发送 POST 请求到指定 URL（避免 CORS 错误）
     chrome.runtime.sendMessage({
       type: 'AUTO_CHECK_CLICK',
@@ -1398,33 +1424,33 @@ function createAutoCheckButton() {
         console.error('点击事件 POST 请求失败:', response?.error);
       }
     });
-    
+
     // 找到所属的 info_right，然后找到其父节点 user-info
     const infoRight = button.closest('.info_right');
     const userInfoParent = infoRight ? infoRight.closest('.user-info') : null;
     const scopeIndex = button.getAttribute('data-info-right-index');
-    
+
     if (userInfoParent) {
       console.log('找到父节点 user-info:', userInfoParent);
-      
+
       // 打印网络监听状态信息
       printNetworkMonitoringStatus();
-     
-      
+
+
       // 执行自动检查（限定范围到父节点 user-info）
       performAutoCheck(userInfoParent, scopeIndex);
     } else {
       console.log('未找到父节点 user-info');
       showNotification('未找到父节点 user-info 容器', 'error');
     }
-    
+
     // 按钮点击效果
     button.classList.add('clicked');
     setTimeout(() => {
       button.classList.remove('clicked');
     }, 200);
   });
-  
+
   return button;
 }
 
@@ -1486,23 +1512,23 @@ async function performAutoCheck(scopeRoot = document, scopeIndex = undefined) {
   // 在函数顶部声明变量，确保在整个函数作用域内可用
   let countersResponse = null;
   let eventlistResponse = null;
-  
+
   try {
     // 获取当前页面的相关信息
     const url = window.location.href;
     const title = document.title;
-    
+
     console.log('执行自动检查:', { url, title });
-    
+
     // 显示检查开始通知
     showNotification('正在收集页面数据...', 'info');
-    
+
     // 收集限定范围内的 class uid 的值（仅 user-info 容器）
     const uidValues = collectUidValues(scopeRoot);
     const sidValues = collectSidValues(scopeRoot);
 
     console.log('sidValues:', sidValues);
-    
+
     // 保存 sid 到全局变量，供后续使用
     if (sidValues) {
       let sid = null;
@@ -1517,7 +1543,7 @@ async function performAutoCheck(scopeRoot = document, scopeIndex = undefined) {
         console.log('已保存 sid 到全局变量:', sid);
       }
     }
-    
+
     // 显示 uid 值弹窗
     const scopeLabel = scopeIndex !== undefined ? `info_right[${scopeIndex}]` : undefined;
     // showUidValuesPopup(uidValues, { scopeLabel });
@@ -1533,7 +1559,7 @@ async function performAutoCheck(scopeRoot = document, scopeIndex = undefined) {
           uidValues[0].value = match[1];
         }
       }
-      
+
       const uid = uidValues[0].value;
       // 从 dataUtil 获取 countersResponse 和 eventlistResponse
       try {
@@ -1542,7 +1568,7 @@ async function performAutoCheck(scopeRoot = document, scopeIndex = undefined) {
 
         countersResponse = await dataUtil.getData('counters', uid);
         eventlistResponse = await dataUtil.getData('eventlist', uid);
-        
+
         if (!countersResponse && sidValues) {
           // sidValues 可能为 sid 数组，也可能为字符串
           let sid = null;
@@ -1555,7 +1581,7 @@ async function performAutoCheck(scopeRoot = document, scopeIndex = undefined) {
             countersResponse = await dataUtil.getData('counters', sid);
           }
         }
-        
+
 
         if (!eventlistResponse && sidValues) {
           let sid = null;
@@ -1568,14 +1594,14 @@ async function performAutoCheck(scopeRoot = document, scopeIndex = undefined) {
             eventlistResponse = await dataUtil.getData('events', sid);
           }
         }
-      
+
       } catch (e) {
         console.error('❌ 从 dataUtil 获取数据失败:', e);
       }
 
-  
+
     }
-    
+
     // 拿到响应后再执行分析
     if (countersResponse) {
       // 创建图表并更新基本信息（showAudioMetricsAnalysis 内部会更新基本信息）
@@ -1584,7 +1610,7 @@ async function performAutoCheck(scopeRoot = document, scopeIndex = undefined) {
     } else {
       showNotification('未找到响应数据', 'error');
     }
-    
+
   } catch (error) {
     console.error('自动检查过程中出现错误:', error);
     showNotification('自动检查失败: ' + error.message, 'error');
@@ -1623,9 +1649,9 @@ function fecthResponse(uidValue, type) {
         window.countersFetchMap.set(matchedUrl, responseText);
       }
       // console.log('  Response:',
-        // typeof responseText === 'string'
-        //   ? responseText
-        //   : responseText
+      // typeof responseText === 'string'
+      //   ? responseText
+      //   : responseText
       // );
     });
     return requestPromise;
@@ -1642,30 +1668,30 @@ function setupCountersInterceptors() {
     return;
   }
   window.__countersInterceptorsSetup = true;
-  
+
   console.log('🚀 立即启动 counters 网络请求拦截器...');
-  
+
   // 初始化存储 counters 请求的 Map
   if (!window.countersInterceptedRequests) {
     window.countersInterceptedRequests = new Map();
   }
-  
+
   // 拦截 fetch 请求
   const originalFetch = window.fetch;
-  window.fetch = async function(...args) {
+  window.fetch = async function (...args) {
     const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
-    
+
     // 检查是否是 counters 请求
     if (url && typeof url === 'string' && url.includes('counters')) {
       console.log('🔵 拦截到 fetch 请求:', url);
-      
+
       try {
         const response = await originalFetch.apply(this, args);
-        
+
         // 克隆响应以便读取内容而不影响原始响应
         const clonedResponse = response.clone();
         const responseText = await clonedResponse.text();
-        
+
         // 存储请求信息
         window.countersInterceptedRequests.set(url, {
           url: url,
@@ -1677,13 +1703,13 @@ function setupCountersInterceptors() {
           headers: Object.fromEntries(response.headers.entries()),
           timestamp: new Date().toISOString()
         });
-        
+
         console.log(`✅ 已捕获 fetch 响应 (${url}):`, {
           status: response.status,
           contentType: response.headers.get('content-type'),
           size: responseText.length
         });
-        
+
         // 打印响应内容
         console.log('📄 Fetch 响应内容:');
         try {
@@ -1692,34 +1718,34 @@ function setupCountersInterceptors() {
         } catch (e) {
           console.log(responseText);
         }
-        
+
         return response;
       } catch (error) {
         console.error('❌ Fetch 请求失败:', error);
         throw error;
       }
     }
-    
+
     return originalFetch.apply(this, args);
   };
-  
+
   // 拦截 XMLHttpRequest
   const originalXHROpen = XMLHttpRequest.prototype.open;
   const originalXHRSend = XMLHttpRequest.prototype.send;
-  
-  XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+
+  XMLHttpRequest.prototype.open = function (method, url, ...rest) {
     this._method = method;
     this._url = url;
     this._isCountersRequest = url && typeof url === 'string' && url.includes('counters');
-    
+
     if (this._isCountersRequest) {
       console.log('🟢 拦截到 XHR 请求:', method, url);
-      
+
       // 监听响应
-      this.addEventListener('load', function() {
+      this.addEventListener('load', function () {
         if (this._isCountersRequest && this.responseText) {
           const fullUrl = url.startsWith('http') ? url : window.location.origin + url;
-          
+
           // 存储请求信息
           window.countersInterceptedRequests.set(fullUrl, {
             url: fullUrl,
@@ -1731,13 +1757,13 @@ function setupCountersInterceptors() {
             headers: this.getAllResponseHeaders(),
             timestamp: new Date().toISOString()
           });
-          
+
           console.log(`✅ 已捕获 XHR 响应 (${fullUrl}):`, {
             status: this.status,
             contentType: this.getResponseHeader('content-type'),
             size: this.responseText.length
           });
-          
+
           // 打印响应内容
           console.log('📄 XHR 响应内容:');
           try {
@@ -1748,21 +1774,21 @@ function setupCountersInterceptors() {
           }
         }
       });
-      
-      this.addEventListener('error', function() {
+
+      this.addEventListener('error', function () {
         if (this._isCountersRequest) {
           console.error('❌ XHR 请求失败:', url);
         }
       });
     }
-    
+
     return originalXHROpen.apply(this, [method, url, ...rest]);
   };
-  
-  XMLHttpRequest.prototype.send = function(...args) {
+
+  XMLHttpRequest.prototype.send = function (...args) {
     return originalXHRSend.apply(this, args);
   };
-  
+
   console.log('✅ counters 网络请求拦截器已设置完成');
 }
 
@@ -1770,30 +1796,30 @@ function setupCountersInterceptors() {
 // 查询已捕获的 counters 请求并打印
 async function findResponse() {
   console.log('🔍 开始查找 counters 响应内容（通过拦截 fetch & XHR）...');
-  
+
   // 确保拦截器已设置
   if (!window.__countersInterceptorsSetup) {
     setupCountersInterceptors();
   }
-  
+
   // 初始化存储 counters 请求的 Map
   if (!window.countersInterceptedRequests) {
     window.countersInterceptedRequests = new Map();
   }
-  
+
   // 从 Performance API 获取已完成的 counters 请求
   try {
     const resources = performance.getEntriesByType('resource');
-    const countersResources = resources.filter(entry => 
+    const countersResources = resources.filter(entry =>
       entry.name && typeof entry.name === 'string' && entry.name.includes('counters')
     );
-    
+
     if (countersResources.length > 0) {
       console.log(`\n📊 从 Performance API 找到 ${countersResources.length} 个 counters 请求:`);
-      
+
       for (const entry of countersResources) {
         console.log(`  - ${entry.name} (${entry.initiatorType})`);
-        
+
         // 如果还没有拦截到，尝试重新获取
         if (!window.countersInterceptedRequests.has(entry.name)) {
           try {
@@ -1810,7 +1836,7 @@ async function findResponse() {
                 headers: Object.fromEntries(response.headers.entries()),
                 timestamp: new Date().toISOString()
               });
-              
+
               console.log(`  ✅ 已获取响应内容 (${entry.name})`);
               console.log('  📄 响应内容:');
               try {
@@ -1829,7 +1855,7 @@ async function findResponse() {
   } catch (error) {
     console.warn('⚠️ 从 Performance API 获取请求失败:', error);
   }
-  
+
   // 打印所有已捕获的 counters 请求摘要
   if (window.countersInterceptedRequests.size > 0) {
     console.log(`\n📋 已捕获 ${window.countersInterceptedRequests.size} 个 counters 请求:`);
@@ -1840,7 +1866,7 @@ async function findResponse() {
     console.log('\n⚠️ 尚未捕获到 counters 请求，拦截器已设置，等待新的请求...');
     console.log('💡 提示: 如果页面已经加载完成，可以刷新页面或触发相关操作来生成新的 counters 请求');
   }
-  
+
   console.log('\n✅ counters 响应内容查找完成（拦截器已激活）');
 }
 
@@ -1850,22 +1876,22 @@ function extractUidValue(text, element) {
   if (!text || !text.trim()) {
     return '';
   }
-  
+
   // 清理文本，移除多余的空白字符
   text = text.trim().replace(/\s+/g, ' ');
-  
+
   // 尝试提取数字 UID（通常是8-10位数字）
   const numberMatch = text.match(/\b\d{8,10}\b/);
   if (numberMatch) {
     return numberMatch[0];
   }
-  
+
   // 尝试提取其他常见的 UID 格式（字母数字组合）
   const alphanumericMatch = text.match(/\b[a-zA-Z0-9]{6,12}\b/);
   if (alphanumericMatch) {
     return alphanumericMatch[0];
   }
-  
+
   // 如果包含 "User" 关键字，尝试提取后面的数字
   if (text.toLowerCase().includes('user')) {
     const userMatch = text.match(/user\s*(\d{8,10})/i);
@@ -1873,7 +1899,7 @@ function extractUidValue(text, element) {
       return userMatch[1];
     }
   }
-  
+
   // 如果都没有匹配到，返回原始文本
   return text;
 }
@@ -1881,21 +1907,21 @@ function extractUidValue(text, element) {
 // 收集指定 user-info 容器内的所有 class uid 的值
 function collectUidValues(userInfoContainer) {
   const uidValues = [];
-  
+
   // 如果传入的不是 user-info 容器，尝试查找
   let container = userInfoContainer;
   if (!container || !container.classList.contains('user-info')) {
     console.log('传入的不是 user-info 容器，尝试查找父节点');
     container = userInfoContainer ? userInfoContainer.closest('.user-info') : null;
   }
-  
+
   if (!container) {
     console.log('未找到 user-info 容器');
     return uidValues;
   }
-  
+
   console.log('在指定的 user-info 容器中查找 uid 元素:', container);
-  
+
   // 优先查找 fetch-log 链接，从 href 中解析 uid
   const fetchLogLinks = container.querySelectorAll('a.fetch-log');
   if (fetchLogLinks.length > 0) {
@@ -1923,27 +1949,27 @@ function collectUidValues(userInfoContainer) {
       }
     });
   }
-  
+
   // 如果没有从 fetch-log 链接中找到 uid，则继续查找 .uid 元素
   if (uidValues.length === 0) {
     const uidElements = container.querySelectorAll('.uid');
-    
+
     uidElements.forEach((element, elementIndex) => {
       let value = element.textContent || element.innerText || element.value || '';
       const tagName = element.tagName.toLowerCase();
       const className = element.className;
       const id = element.id || '';
-      
+
       // 智能提取 UID 值
       value = extractUidValue(value, element);
-      
+
       // 获取父容器的信息
       const containerInfo = {
         containerIndex: 1, // 只有一个容器
         containerId: container.id || '',
         containerClasses: container.className
       };
-      
+
       uidValues.push({
         index: uidValues.length + 1,
         value: value.trim(),
@@ -1955,7 +1981,7 @@ function collectUidValues(userInfoContainer) {
       });
     });
   }
-  
+
   console.log(`在指定的 user-info 容器中找到 ${uidValues.length} 个 uid 元素:`, uidValues);
   return uidValues;
 }
@@ -1963,11 +1989,11 @@ function collectUidValues(userInfoContainer) {
 // 收集 counter-view 中 sids 的第二个 span 值
 function collectSidValues(scopeRoot) {
   const sidValues = [];
-  
+
   try {
     // 在 scopeRoot 中查找 auto-check 按钮
     let autoCheckButton = null;
-    
+
     // 如果 scopeRoot 本身就是 auto-check 按钮
     if (scopeRoot && scopeRoot.classList && scopeRoot.classList.contains('auto-check-btn')) {
       autoCheckButton = scopeRoot;
@@ -1975,28 +2001,28 @@ function collectSidValues(scopeRoot) {
       // 在 scopeRoot 中查找 auto-check 按钮
       autoCheckButton = scopeRoot.querySelector ? scopeRoot.querySelector('.auto-check-btn') : null;
     }
-    
+
     if (!autoCheckButton) {
       console.log('未找到 auto-check 按钮');
       return sidValues;
     }
-    
+
     // 向上查找 counter-view div
     const counterView = autoCheckButton.closest('.counter-view');
-    
+
     if (!counterView) {
       console.log('未找到 counter-view div');
       return sidValues;
     }
-    
+
     // 在 counter-view div 中查找所有 class = sids 的元素
     const sidsElements = counterView.querySelectorAll('.sids');
-    
+
     if (sidsElements.length === 0) {
       console.log('在 counter-view 中未找到 class=sids 的元素');
       return sidValues;
     }
-    
+
     // 收集所有 sids 元素中的所有 span
     const allSpans = [];
     sidsElements.forEach((sidsElement) => {
@@ -2005,12 +2031,12 @@ function collectSidValues(scopeRoot) {
         allSpans.push(span);
       });
     });
-    
+
     // 获取第二个 span 的值（索引为 1）
     if (allSpans.length >= 2) {
       const secondSpan = allSpans[1];
       const spanValue = secondSpan.textContent || secondSpan.innerText || '';
-      
+
       sidValues.push({
         index: 1,
         value: spanValue.trim(),
@@ -2024,7 +2050,7 @@ function collectSidValues(scopeRoot) {
           containerClasses: counterView.className
         }
       });
-      
+
       return spanValue.trim();
     }
     return null;
@@ -2040,7 +2066,7 @@ function showUidValuesPopup(uidValues, options = {}) {
   // 创建弹窗容器
   const popup = document.createElement('div');
   popup.className = 'uid-values-popup';
-  
+
   if (uidValues.length === 0) {
     popup.innerHTML = `
       <div class="popup-header">
@@ -2094,7 +2120,7 @@ function showUidValuesPopup(uidValues, options = {}) {
       </div>
     `;
   }
-  
+
   // 添加样式
   popup.style.cssText = `
     position: fixed;
@@ -2112,7 +2138,7 @@ function showUidValuesPopup(uidValues, options = {}) {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     animation: slideIn 0.3s ease-out;
   `;
-  
+
   // 添加CSS样式
   const style = document.createElement('style');
   style.textContent = `
@@ -2331,27 +2357,27 @@ function showUidValuesPopup(uidValues, options = {}) {
       margin: 10px 0;
     }
   `;
-  
+
   document.head.appendChild(style);
   document.body.appendChild(popup);
-  
+
   // 添加事件监听器（替代内联事件处理器）
   const copyBtn = popup.querySelector('.copy-btn');
   const exportBtn = popup.querySelector('.export-btn');
-  
+
   // 添加全局函数
   window.copyUidValues = () => {
-    const text = uidValues.map(uid => 
+    const text = uidValues.map(uid =>
       `#${uid.index} - 容器${uid.containerInfo.containerIndex} - ${uid.tagName}${uid.id ? ` (id="${uid.id}")` : ''}: ${uid.value || '(空值)'}`
     ).join('\n');
-    
+
     navigator.clipboard.writeText(text).then(() => {
       showNotification('UID值已复制到剪贴板', 'success');
     }).catch(() => {
       showNotification('复制失败，请手动复制', 'error');
     });
   };
-  
+
   window.exportUidValues = () => {
     const dataStr = JSON.stringify(uidValues.map(uid => ({
       index: uid.index,
@@ -2361,19 +2387,19 @@ function showUidValuesPopup(uidValues, options = {}) {
       id: uid.id,
       containerInfo: uid.containerInfo
     })), null, 2);
-    
+
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
-    
+
     const link = document.createElement('a');
     link.href = url;
     link.download = `user-info-uid-values-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
     link.click();
-    
+
     URL.revokeObjectURL(url);
     showNotification('UID数据已导出', 'success');
   };
-  
+
   // 绑定事件监听器
   if (copyBtn) {
     copyBtn.addEventListener('click', window.copyUidValues);
@@ -2381,7 +2407,7 @@ function showUidValuesPopup(uidValues, options = {}) {
   if (exportBtn) {
     exportBtn.addEventListener('click', window.exportUidValues);
   }
-  
+
   showNotification(`找到 ${uidValues.length} 个UID元素`, 'success');
 }
 
@@ -2409,14 +2435,14 @@ function monitorNetworkRequests() {
   if (window.__autoCheckDebug) {
     console.log('🚀 启动网络请求监听...');
   }
-  
+
   // 重写 fetch 方法
   const originalFetch = window.fetch;
-  window.fetch = function(...args) {
+  window.fetch = function (...args) {
     const url = args[0];
     const isCountersRequest = typeof url === 'string' && url.includes('counters?') && url.includes('uids=');
     const iseventlistRequest = typeof url === 'string' && url.includes('eventlist');
-    
+
     if (isCountersRequest || iseventlistRequest) {
       if (window.__autoCheckDebug) {
         if (isCountersRequest) {
@@ -2426,17 +2452,17 @@ function monitorNetworkRequests() {
           console.log('🌐 [Fetch] 发现 eventlist 请求:', url);
         }
       }
-      
+
       // 拦截响应并计算 JSON 长度
       const originalThen = Promise.prototype.then;
       const fetchPromise = originalFetch.apply(this, args);
-      
+
       // 将 counters 信息按 url, response 保存到 map
       if (!window.countersFetchMap) {
         window.countersFetchMap = new Map();
       }
-      fetchPromise.then = function(onFulfilled, onRejected) {
-        return originalThen.call(this, function(response) {
+      fetchPromise.then = function (onFulfilled, onRejected) {
+        return originalThen.call(this, function (response) {
           if (onFulfilled) {
             // 克隆响应以便读取内容
             const clonedResponse = response.clone();
@@ -2449,14 +2475,14 @@ function monitorNetworkRequests() {
                   console.log('保存 url 和 response 到 map:', requestUrl);
                 }
               }
-              
+
               // 检测 eventlist 请求并保存数据
               if (iseventlistRequest) {
                 try {
                   // 动态导入 data-util 模块
                   const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
                   const uid = dataUtil.extractUidFromUrl(requestUrl);
-                  
+
                   if (uid) {
                     dataUtil.saveData('eventlist', uid, requestUrl, text);
                     if (window.__autoCheckDebug) {
@@ -2471,7 +2497,7 @@ function monitorNetworkRequests() {
                   console.error('❌ [Fetch] 保存 eventlist 数据失败:', error);
                 }
               }
-              
+
               try {
                 const jsonData = JSON.parse(text);
                 const jsonLength = JSON.stringify(jsonData).length;
@@ -2492,7 +2518,7 @@ function monitorNetworkRequests() {
           return onFulfilled ? onFulfilled(response) : response;
         }, onRejected);
       };
-      
+
       return fetchPromise;
     } else if (typeof url === 'string' && url.includes('counters?')) {
       if (window.__autoCheckDebug) {
@@ -2505,20 +2531,20 @@ function monitorNetworkRequests() {
   // 重写 XMLHttpRequest 方法
   const originalXHROpen = XMLHttpRequest.prototype.open;
   const originalXHRSend = XMLHttpRequest.prototype.send;
-  
-  XMLHttpRequest.prototype.open = function(method, url, ...args) {
+
+  XMLHttpRequest.prototype.open = function (method, url, ...args) {
     this._monitoredUrl = url;
     this._monitoredMethod = method;
     return originalXHROpen.apply(this, [method, url, ...args]);
   };
-  
-  XMLHttpRequest.prototype.send = function(...args) {
+
+  XMLHttpRequest.prototype.send = function (...args) {
     const xhr = this;
     const url = xhr._monitoredUrl;
     const method = xhr._monitoredMethod;
     const isCountersRequest = typeof url === 'string' && url.includes('counters?') && url.includes('uids=');
     const iseventlistRequest = typeof url === 'string' && url.includes('eventlist');
-    
+
     if (isCountersRequest || iseventlistRequest) {
       if (window.__autoCheckDebug) {
         if (isCountersRequest) {
@@ -2528,22 +2554,22 @@ function monitorNetworkRequests() {
           console.log('🌐 [XHR] 发现 eventlist 请求:', method, url);
         }
       }
-      
+
       // 监听响应
       const originalOnReadyStateChange = xhr.onreadystatechange;
-      xhr.onreadystatechange = async function() {
+      xhr.onreadystatechange = async function () {
         if (xhr.readyState === 4) { // 请求完成
           if (xhr.status >= 200 && xhr.status < 300) {
             try {
               const responseText = xhr.responseText;
-              
+
               // 检测 eventlist 请求并保存数据
               if (iseventlistRequest) {
                 try {
                   // 动态导入 data-util 模块
                   const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
                   const uid = dataUtil.extractUidFromUrl(url);
-                  
+
                   if (uid) {
                     dataUtil.saveData('eventlist', uid, url, responseText);
                     if (window.__autoCheckDebug) {
@@ -2558,7 +2584,7 @@ function monitorNetworkRequests() {
                   console.error('❌ [XHR] 保存 eventlist 数据失败:', error);
                 }
               }
-              
+
               if (isCountersRequest) {
                 const jsonData = JSON.parse(responseText);
                 const jsonLength = JSON.stringify(jsonData).length;
@@ -2586,7 +2612,7 @@ function monitorNetworkRequests() {
         console.log('🌐 [XHR] 发现 counters? 请求:', method, url);
       }
     }
-    
+
     return originalXHRSend.apply(this, args);
   };
 
@@ -2612,18 +2638,18 @@ function monitorNetworkRequests() {
   // 监听所有网络请求（更全面的方法）
   const networkObserver = new PerformanceObserver((list) => {
     for (const entry of list.getEntries()) {
-      if (entry.name && ( entry.name.includes('counters?') || entry.name.includes('eventlist') )) {
+      if (entry.name && (entry.name.includes('counters?') || entry.name.includes('eventlist'))) {
         if (window.__autoCheckDebug) {
           console.log('🌐 [Network] counters 请求:', entry.entryType, entry.name);
         }
-      // 将 entry 保存到全局的 resp 数组
-      if (!window.resp) {
-        window.resp = [];
-      }
-      window.resp.push(entry);
-      if (window.__autoCheckDebug) {
-        console.log('保存 entry 到 window.resp');
-      }
+        // 将 entry 保存到全局的 resp 数组
+        if (!window.resp) {
+          window.resp = [];
+        }
+        window.resp.push(entry);
+        if (window.__autoCheckDebug) {
+          console.log('保存 entry 到 window.resp');
+        }
       }
     }
   });
@@ -2685,7 +2711,7 @@ function displayCountersData(countersData) {
   if (aecDelayData) {
     showAecDelayChart(aecDelayData);
   }
-  
+
   // 创建数据展示面板
   const panel = document.createElement('div');
   panel.className = 'auto-check-data-panel';
@@ -2728,7 +2754,7 @@ function displayCountersData(countersData) {
       <button class="export-btn">导出数据</button>
     </div>
   `;
-  
+
   // 添加样式
   panel.style.cssText = `
     position: fixed;
@@ -2745,38 +2771,38 @@ function displayCountersData(countersData) {
     overflow: hidden;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   `;
-  
+
   document.body.appendChild(panel);
-  
+
   // 添加事件监听器（替代内联事件处理器）
   const copyAllBtn = panel.querySelector('.copy-all-btn');
   const exportBtn = panel.querySelector('.export-btn');
-  
+
   // 添加复制和导出功能到全局
   window.copyAllCountersData = () => {
-    const text = countersData.map(counter => 
+    const text = countersData.map(counter =>
       `URL: ${counter.url}\n方法: ${counter.method}\n状态: ${counter.statusCode}\n时间: ${new Date(counter.timestamp).toLocaleString()}\n内容: ${counter.bodyText || 'N/A'}\n---\n`
     ).join('\n');
-    
+
     navigator.clipboard.writeText(text).then(() => {
       showNotification('数据已复制到剪贴板', 'success');
     });
   };
-  
+
   window.exportCountersData = () => {
     const dataStr = JSON.stringify(countersData, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(dataBlob);
-    
+
     const link = document.createElement('a');
     link.href = url;
     link.download = `counters-data-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
     link.click();
-    
+
     URL.revokeObjectURL(url);
     showNotification('数据已导出', 'success');
   };
-  
+
   // 绑定事件监听器
   if (copyAllBtn) {
     copyAllBtn.addEventListener('click', window.copyAllCountersData);
@@ -2784,7 +2810,7 @@ function displayCountersData(countersData) {
   if (exportBtn) {
     exportBtn.addEventListener('click', window.exportCountersData);
   }
-  
+
   showNotification(`发现${countersData.length}条counters数据`, 'success');
 }
 
@@ -2934,7 +2960,7 @@ function loadChartJsFallback() {
     ];
 
     let currentIndex = 0;
-    
+
     function tryLoadFallbackScript(index) {
       if (index >= fallbackSources.length) {
         reject(new Error('所有备用CDN源都失败'));
@@ -2980,7 +3006,7 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalL
     'A PLAYOUT SIGNAL VOLUME': playoutSignalVolumeData,
     'Chat Engine Error Code': errorCodeData
   };
-  
+
   // 1) 容器与画布：若不存在则创建，存在则复用
   let chartContainer = document.querySelector('.combined-audio-analysis-container');
   if (!chartContainer) {
@@ -3167,7 +3193,7 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalL
         </div>
       </div>
     `;
-    
+
     chartContainer.style.cssText = `
       position: fixed;
       top: 50%;
@@ -3183,7 +3209,7 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalL
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       animation: slideIn 0.3s ease-out;
     `;
-    
+
     // 添加组合音频分析图表的CSS样式
     const style = document.createElement('style');
     style.textContent = `
@@ -3842,9 +3868,9 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalL
         }
       }
     `;
-    
+
     document.head.appendChild(style);
-    
+
     document.body.appendChild(chartContainer);
   }
 
@@ -3853,19 +3879,19 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalL
   createSignalLevelChart(signalLevelData);
   createRecordVolumeChart(recordSignalVolumeData);
   createCombinedChart(aecDelayData, signalLevelData, recordSignalVolumeData);
-  
+
   // 初始化时隐藏统计信息，显示选择提示
   const chartFooter = chartContainer.querySelector('.chart-footer');
   if (chartFooter) {
     chartFooter.style.display = 'none';
   }
-  
+
   // 初始化时隐藏所有指标行（metric-row）
   const metricRows = chartContainer.querySelectorAll('.metric-row');
   metricRows.forEach(row => {
     row.style.display = 'none';
   });
-  
+
   // 显示选择提示
   showSelectionPrompt();
 
@@ -3873,7 +3899,7 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalL
   // 为复选框添加事件监听器
   const checkboxes = chartContainer.querySelectorAll('input[type="checkbox"][data-issue-type]');
   checkboxes.forEach(checkbox => {
-    checkbox.addEventListener('change', function() {
+    checkbox.addEventListener('change', function () {
       const issueType = this.getAttribute('data-issue-type');
       window.updateIssueStatus(issueType, this.checked);
     });
@@ -3882,35 +3908,35 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalL
   // 为标签页按钮添加事件监听器
   const tabButtons = chartContainer.querySelectorAll('.tab-btn[data-tab]');
   tabButtons.forEach(button => {
-    button.addEventListener('click', function() {
+    button.addEventListener('click', function () {
       const tabName = this.getAttribute('data-tab');
       window.switchTab(tabName);
     });
   });
 
   // 4) 添加全局函数（updateIssueStatus 已在全局作用域定义）
-  
+
   // 获取问题显示名称（已在全局作用域定义）
-  
+
   // 根据问题状态更新图表 - 定义为全局函数以便 updateIssueStatus 调用
-  window.updateChartBasedOnIssues = function() {
+  window.updateChartBasedOnIssues = function () {
     const issues = window.audioAnalysisIssues || {};
-    
+
     console.log('🔄 updateChartBasedOnIssues 被调用，当前状态:', issues);
-    
+
     // 更新图表标题以反映问题状态
     updateChartTitle(issues);
-    
+
     // 根据问题状态调整图表样式
     adjustChartStyles(issues);
-    
+
     // 更新统计信息显示
     updateStatisticsDisplay(issues);
-    
+
     // 检查是否需要显示选择提示
     const hasActiveIssues = Object.values(issues).some(checked => checked);
     console.log('📊 是否有激活的问题:', hasActiveIssues);
-    
+
     // 根据是否有勾选的问题来显示/隐藏分析图表
     const scrollableContent = document.querySelector('.combined-audio-analysis-container .scrollable-content');
     if (scrollableContent) {
@@ -3925,34 +3951,34 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalL
       }
     }
   };
-  
+
   // 更新图表标题
   function updateChartTitle(issues) {
     const header = document.querySelector('.combined-audio-analysis-container .chart-header h3');
     if (header) {
       let title = '📊 音频分析 - AEC Delay, Signal Level & Record Volume';
-      
+
       const activeIssues = Object.entries(issues)
         .filter(([key, value]) => value)
         .map(([key]) => getIssueDisplayName(key));
-      
+
       if (activeIssues.length > 0) {
         title += ` (问题: ${activeIssues.join(', ')})`;
       }
-      
+
       header.textContent = "🎯🎯🎯 分析";
     }
   }
-  
+
   // 调整图表样式
   function adjustChartStyles(issues) {
     // 不再修改画布颜色
     // const chartContainer = document.querySelector('.combined-audio-analysis-container');
     // if (!chartContainer) return;
-    
+
     // 根据问题状态添加相应的 CSS 类
     // chartContainer.classList.remove('has-no-sound', 'has-low-level', 'has-echo');
-    
+
     // if (issues.isNoSound) {
     //   chartContainer.classList.add('has-no-sound');
     // }
@@ -3963,13 +3989,13 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalL
     //   chartContainer.classList.add('has-echo');
     // }
   }
-  
-  
+
+
   window.switchTab = (tabName) => {
     // 切换标签页
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     document.querySelector(`.tab-btn[data-tab="${tabName}"]`).classList.add('active');
-    
+
     // 切换画布显示
     document.getElementById('aecDelayChart').style.display = tabName === 'aec' ? 'block' : 'none';
     document.getElementById('signalLevelChart').style.display = tabName === 'signal' ? 'block' : 'none';
@@ -3992,16 +4018,16 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalL
         return `${new Date(point.timestamp).toISOString()},${point.value},${signalPoint.value},${recordPoint.value},"${issueInfo}"`;
       })
     ].join('\n');
-    
+
     const csvContent = csvData;
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
-    
+
     const link = document.createElement('a');
     link.href = url;
     link.download = `combined-audio-analysis-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
     link.click();
-    
+
     URL.revokeObjectURL(url);
     showNotification('组合音频分析数据已导出', 'success');
   };
@@ -4023,11 +4049,11 @@ function createCombinedChart(aecDelayData, signalLevelData, recordSignalVolumeDa
   const aecPrepared = prepareChartData(safeAecDelayData.data);
   const signalPrepared = prepareChartData(safeSignalLevelData.data);
   const recordPrepared = prepareChartData(safeRecordSignalVolumeData.data);
-  
+
   if (window.combinedChartInstance) {
     window.combinedChartInstance.destroy();
   }
-  
+
   window.combinedChartInstance = new Chart(canvas.getContext('2d'), {
     type: 'line',
     data: {
@@ -4082,7 +4108,7 @@ function createCombinedChart(aecDelayData, signalLevelData, recordSignalVolumeDa
           mode: 'index',
           intersect: false,
           callbacks: {
-            title: function(context) {
+            title: function (context) {
               const i = context[0].dataIndex;
               const ts = safeAecDelayData.data[i]?.timestamp;
               return ts ? new Date(ts).toLocaleString() : '';
@@ -4130,27 +4156,27 @@ function createCombinedChart(aecDelayData, signalLevelData, recordSignalVolumeDa
 function prepareChartData(data) {
   // 过滤掉null值但保留0值，并排序
   const validData = data.filter(point => point.value !== null && point.value !== undefined).sort((a, b) => a.timestamp - b.timestamp);
-  
+
   const labels = validData.map(point => {
     const date = new Date(point.timestamp);
     return date.toLocaleTimeString();
   });
-  
+
   const values = validData.map(point => point.value);
-  
+
   return { labels, values };
 }
 
 // 格式化时间范围
 function formatTimeRange(data) {
   if (data.length === 0) return '无数据';
-  
+
   const timestamps = data.map(point => point.timestamp).filter(ts => ts !== null);
   if (timestamps.length === 0) return '无有效数据';
-  
+
   const startTime = new Date(Math.min(...timestamps));
   const endTime = new Date(Math.max(...timestamps));
-  
+
   return `${startTime.toLocaleTimeString()} - ${endTime.toLocaleTimeString()}`;
 }
 
@@ -4184,20 +4210,20 @@ function calculateMetricStatistics(data, metricName) {
   const average = Math.round(sum / values.length);
   const maximum = Math.max(...values);
   const minimum = Math.min(...values);
-  
+
   // 计算变化次数（值变化超过阈值的次数）
   let changes = 0;
   const threshold = getChangeThreshold(metricName);
   for (let i = 1; i < validData.length; i++) {
-    if (Math.abs(validData[i].value - validData[i-1].value) > threshold) {
+    if (Math.abs(validData[i].value - validData[i - 1].value) > threshold) {
       changes++;
     }
   }
-  
+
   // 计算变化频率
   const timeSpan = (validData[validData.length - 1].timestamp - validData[0].timestamp) / 1000 / 60; // 分钟
   const frequency = timeSpan > 0 ? Math.round(changes / timeSpan) : 0;
-  
+
   return {
     dataPoints: validData.length,
     average: average,
@@ -4230,15 +4256,15 @@ function getChangeThreshold(metricName) {
 function generateStatisticsHTML(data, metricName) {
   const config = getMetricConfig(metricName);
   const stats = calculateMetricStatistics(data, metricName);
-  
+
   if (!config) {
     console.warn(`未找到指标配置: ${metricName}`);
     return '';
   }
-  
+
   const unit = config.unit || '';
   const unitSuffix = unit ? unit : '';
-  
+
   return `
     <div class="stat-section">
       <h4>${config.displayName}</h4>
@@ -4296,7 +4322,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
   const safeErrorCodeData = errorCodeData || { data: [] };
   const safeAudioPlaybackFrequencyData = audioPlaybackFrequencyData || { data: [] };
   const safeAudioDownlinkPullTimeData = audioDownlinkPullTimeData || { data: [] };
-  
+
   // 保存数据到全局变量，以便后续动态访问
   window.metricDataCache = {
     'Audio AEC Delay': aecDelayData,
@@ -4308,7 +4334,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
     'Audio Playback Frequency': audioPlaybackFrequencyData,
     'AUDIO DOWNLINK PULL 10MS DATA TIME': audioDownlinkPullTimeData
   };
-  
+
   // 创建图表容器
   const chartContainer = document.createElement('div');
   chartContainer.className = 'combined-audio-analysis-container fallback-chart';
@@ -4317,11 +4343,12 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
       <h3> 🎯🎯🎯 分析</h3>
       <button class="close-chart" onclick="this.parentElement.parentElement.remove()">×</button>
     </div>
-    <div class="chart-content">
-      ${window.hasNewVersion ? '<div class="update-banner">已有新版，请更新 <a href="https://github.com/ReikyZ/auto-check/archive/refs/heads/main.zip" target="_blank" class="update-link">点击下载</a></div>' : ''}
-      <div class="base-info">
-        <h4>基本信息</h4>
-      </div>
+    <div class="chart-body" style="flex: 1; overflow-y: auto; padding: 0 20px 20px 20px;">
+      <div class="chart-content">
+        ${window.hasNewVersion ? '<div class="update-banner">已有新版，请更新 <a href="https://github.com/ReikyZ/auto-check/archive/refs/heads/main.zip" target="_blank" class="update-link">点击下载</a></div>' : ''}
+        <div class="base-info">
+          <h4>基本信息</h4>
+        </div>
       <div class="issue-checkboxes">
         <div class="checkbox-group">
           <label class="checkbox-item">
@@ -4577,12 +4604,22 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
           ` : ''}
         </div>
       </div>
-      <div class="feedback-section">
-        <button class="feedback-btn useful-btn">👍有用</button>
-        <input type="text" class="feedback-input" placeholder="💬需求/改进...">
-        <button class="feedback-btn submit-btn">💬反馈</button>
+      <div class="ai-analysis-section" style="margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px; display: flex; flex-direction: column; flex: 1; min-height: 0;">
+        <div style="display: flex; gap: 10px; align-items: stretch; margin-bottom: 10px;">
+          <input type="text" id="aiAnalysisDescription" placeholder="请描述具体问题，例如：'听不到声音'、'视频卡顿'..." style="flex: 1; padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-family: inherit; font-size: 13px; box-sizing: border-box;">
+          <button class="ai-analysis-btn" id="startAiAnalysis" style="padding: 10px 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap;">
+            <span>🤖</span> AI 智能分析
+          </button>
+        </div>
+        <div class="ai-analysis-result" id="aiAnalysisResult" style="display:none; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #e9ecef; min-height: 100px;">
+           <div class="loading" style="display:none; text-align: center; color: #666;">
+             <span style="display: inline-block; animation: spin 1s linear infinite;">⏳</span> 正在分析数据...
+           </div>
+           <div class="content markdown-body" style="font-size: 13px; line-height: 1.6; color: #333;"></div>
+        </div>
       </div>
     </div>
+  </div>
   `;
 
   // 添加样式
@@ -4593,7 +4630,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
     transform: translate(-50%, -50%);
     width: 90%;
     max-width: 1000px;
-    max-height: 100vh;
+    max-height: 90vh;
     background: white;
     border-radius: 12px;
     box-shadow: 0 15px 35px rgba(0, 0, 0, 0.2);
@@ -4604,7 +4641,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
     display: flex;
     flex-direction: column;
   `;
-  
+
   // 确保样式已加载（如果之前没有加载过）
   if (!document.querySelector('style[data-combined-audio-styles]')) {
     const style = document.createElement('style');
@@ -5330,6 +5367,45 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
       .combined-audio-analysis-container .feedback-input:focus {
         border-color: #667eea;
       }
+
+      /* Markdown 样式增强 */
+      .combined-audio-analysis-container .markdown-body h1,
+      .combined-audio-analysis-container .markdown-body h2,
+      .combined-audio-analysis-container .markdown-body h3,
+      .combined-audio-analysis-container .markdown-body h4 {
+        margin-top: 1.2em;
+        margin-bottom: 0.6em;
+        font-weight: 600;
+        line-height: 1.25;
+        color: #24292e;
+      }
+      
+      .combined-audio-analysis-container .markdown-body h3 { font-size: 1.1em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
+      .combined-audio-analysis-container .markdown-body h4 { font-size: 1em; }
+
+      .combined-audio-analysis-container .markdown-body p { margin-bottom: 1em; }
+      .combined-audio-analysis-container .markdown-body ul, 
+      .combined-audio-analysis-container .markdown-body ol { padding-left: 2em; margin-bottom: 1em; }
+      .combined-audio-analysis-container .markdown-body li { margin-bottom: 0.25em; }
+      .combined-audio-analysis-container .markdown-body li > p { margin-top: 0.5em; }
+      
+      .combined-audio-analysis-container .markdown-body blockquote {
+        padding: 0 1em;
+        color: #6a737d;
+        border-left: 0.25em solid #dfe2e5;
+        margin: 0 0 1em 0;
+      }
+      
+      .combined-audio-analysis-container .markdown-body code {
+        padding: 0.2em 0.4em;
+        margin: 0;
+        font-size: 85%;
+        background-color: rgba(27,31,35,0.05);
+        border-radius: 3px;
+        font-family: SFMono-Regular,Consolas,Liberation Mono,Menlo,monospace;
+      }
+      
+      .combined-audio-analysis-container .markdown-body strong { font-weight: 600; color: #dc3545; /* 重点内容标红 */ }
     `;
     document.head.appendChild(style);
   }
@@ -5355,12 +5431,12 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
         isDragging = true;
         startX = e.clientX;
         startY = e.clientY;
-        
+
         // 获取当前容器的位置
         const rect = chartContainer.getBoundingClientRect();
         initialLeft = rect.left;
         initialTop = rect.top;
-        
+
         // 移除 transform 居中，改用绝对定位
         chartContainer.style.transform = 'none';
         chartContainer.style.left = initialLeft + 'px';
@@ -5372,7 +5448,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
           e.preventDefault();
           const deltaX = e.clientX - startX;
           const deltaY = e.clientY - startY;
-          
+
           chartContainer.style.left = (initialLeft + deltaX) + 'px';
           chartContainer.style.top = (initialTop + deltaY) + 'px';
         }
@@ -5403,13 +5479,13 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
   if (safeAudioDownlinkPullTimeData.data && safeAudioDownlinkPullTimeData.data.length > 0) {
     createDataTable(safeAudioDownlinkPullTimeData.data, 'audioDownlinkPullTimeDataTable');
   }
-  
+
   // 初始化时隐藏所有指标行（metric-row）
   const metricRows = chartContainer.querySelectorAll('.metric-row');
   metricRows.forEach(row => {
     row.style.display = 'none';
   });
-  
+
   // 显示选择提示
   showSelectionPrompt();
 
@@ -5417,7 +5493,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
   // 为复选框添加事件监听器
   const checkboxes = chartContainer.querySelectorAll('input[type="checkbox"][data-issue-type]');
   checkboxes.forEach(checkbox => {
-    checkbox.addEventListener('change', function() {
+    checkbox.addEventListener('change', function () {
       const issueType = this.getAttribute('data-issue-type');
       window.updateIssueStatus(issueType, this.checked);
     });
@@ -5426,7 +5502,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
   // 为标签页按钮添加事件监听器
   const tabButtons = chartContainer.querySelectorAll('.tab-btn[data-tab]');
   tabButtons.forEach(button => {
-    button.addEventListener('click', function() {
+    button.addEventListener('click', function () {
       const tabName = this.getAttribute('data-tab');
       window.switchTab(tabName);
     });
@@ -5435,12 +5511,12 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
   // 为"有用"按钮添加烟花效果和POST请求
   const usefulBtn = chartContainer.querySelector('.useful-btn');
   if (usefulBtn) {
-    usefulBtn.addEventListener('click', function() {
+    usefulBtn.addEventListener('click', function () {
       createFireworks(this);
-      
+
       // 点击后隐藏按钮
       this.style.display = 'none';
-      
+
       // 通过background script发送POST请求，避免证书问题
       console.log('📤 发送反馈消息...');
       chrome.runtime.sendMessage({
@@ -5464,47 +5540,147 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
   }
 
   // 为"反馈"按钮添加点击事件
-  const submitBtn = chartContainer.querySelector('.submit-btn');
-  if (submitBtn) {
-    submitBtn.addEventListener('click', function() {
-      const feedbackSection = this.closest('.feedback-section');
-      const feedbackInput = feedbackSection.querySelector('.feedback-input');
-      const feedbackText = feedbackInput.value.trim();
-      
-      if (feedbackText) {
-        // 发送反馈内容
-        console.log('📤 发送反馈消息:', feedbackText);
-        chrome.runtime.sendMessage({
-          type: 'SEND_FEEDBACK',
-          data: {
-            timestamp: new Date().toISOString(),
-            action: 'feedback',
-            content: feedbackText
+  // 为"AI分析"按钮添加点击事件
+  const aiAnalysisBtn = chartContainer.querySelector('#startAiAnalysis');
+  const aiAnalysisResult = chartContainer.querySelector('#aiAnalysisResult');
+  const loadingEl = aiAnalysisResult.querySelector('.loading');
+  const contentEl = aiAnalysisResult.querySelector('.content');
+
+  if (aiAnalysisBtn) {
+    aiAnalysisBtn.addEventListener('click', async function () {
+      // 显示加载状态
+      aiAnalysisResult.style.display = 'block';
+      loadingEl.style.display = 'block';
+      contentEl.innerHTML = '';
+      this.disabled = true;
+      this.style.opacity = '0.7';
+
+      try {
+        // 获取当前 SID
+        let sid = window.currentSid || null;
+        if (!sid) {
+          const sidFromPage = collectSidValues(document);
+          if (sidFromPage) {
+            if (Array.isArray(sidFromPage) && sidFromPage.length > 0) {
+              sid = sidFromPage[0].value || sidFromPage[0];
+            } else if (typeof sidFromPage === 'string') {
+              sid = sidFromPage;
+            }
           }
+        }
+
+        if (!sid) {
+          throw new Error('未找到会话 ID (SID)');
+        }
+
+        console.log('🤖 开始 AI 分析, SID:', sid);
+
+        // 收集选中的问题类型，自动填充到输入框（如果输入框为空）
+        const selectedIssues = [];
+        if (window.audioAnalysisIssues) {
+          if (window.audioAnalysisIssues.isErrorCode) selectedIssues.push('错误码');
+          if (window.audioAnalysisIssues.isNoSound) selectedIssues.push('无声');
+          if (window.audioAnalysisIssues.isLowLevel) selectedIssues.push('音量小');
+          if (window.audioAnalysisIssues.isEcho) selectedIssues.push('回声');
+          if (window.audioAnalysisIssues.isAudioStutter) selectedIssues.push('音频卡顿');
+          if (window.audioAnalysisIssues.isBlack) selectedIssues.push('黑屏');
+        }
+
+        // 获取用户输入
+        const descriptionInput = chartContainer.querySelector('#aiAnalysisDescription');
+        let userDescription = descriptionInput ? descriptionInput.value.trim() : '';
+
+        // 如果用户没填，尝试用勾选的生成
+        if (!userDescription && selectedIssues.length > 0) {
+          userDescription = `用户反馈的问题是：${selectedIssues.join('、')}`;
+        }
+
+        // 最终的描述
+        const description = userDescription || '用户未提供具体描述，请全面分析数据。';
+        const currentUrl = window.location.href;
+
+        // 发送分析请求
+        const requestData = {
+          url: currentUrl,
+          description: description
+        };
+
+        // 如果获取到了用户信息，通过用户名一并发送
+        if (window.argusUserInfo && window.argusUserInfo.name) {
+          requestData.username = window.argusUserInfo.name;
+        }
+
+        chrome.runtime.sendMessage({
+          type: 'SEND_AI_ANALYSIS',
+          data: requestData
         }, (response) => {
+          // 恢复按钮状态
+          this.disabled = false;
+          this.style.opacity = '1';
+          loadingEl.style.display = 'none';
+
           if (chrome.runtime.lastError) {
-            console.error('❌ 消息发送失败:', chrome.runtime.lastError.message);
+            contentEl.innerHTML = `<span style="color: #dc3545;">❌ 分析请求失败: ${chrome.runtime.lastError.message}</span>`;
             return;
           }
+
           if (response && response.success) {
-            console.log('👍 反馈已发送:', response.data);
+            // 显示分析结果 (参照 disk 项目格式)
+            let analysisResult = '';
+            if (response.data && response.data.analysis) {
+              analysisResult = response.data.analysis;
+            } else if (response.data && response.data.content) {
+              analysisResult = response.data.content;
+            } else if (typeof response.data === 'string') {
+              analysisResult = response.data;
+            } else {
+              analysisResult = JSON.stringify(response.data, null, 2);
+            }
+
+            // 按照 disk 项目的展示格式
+            let resultHtml = '<div style="color: #28a745; font-weight: bold; margin-bottom: 10px;">✅ 分析完成！</div>';
+            resultHtml += '<div style="padding:15px; background:#f8f9fa; border-radius:5px; border:1px solid #eee; text-align:left; color:#333; font-size:14px; line-height:1.6;">' + parseMarkdown(analysisResult) + '</div>';
+
+            contentEl.innerHTML = resultHtml;
+            console.log('🤖 AI 分析完成');
           } else {
-            console.error('❌ 发送反馈失败:', response?.error || '未知错误');
+            contentEl.innerHTML = `<span style="color: #dc3545;">❌ 分析失败: ${response?.error || '未知错误'}</span>`;
           }
         });
-      }
-      
-      // 向下消失动画
-      if (feedbackSection) {
-        feedbackSection.style.transition = 'transform 0.5s ease-out, opacity 0.5s ease-out';
-        feedbackSection.style.transform = 'translateY(100%)';
-        feedbackSection.style.opacity = '0';
-        
-        setTimeout(() => {
-          feedbackSection.style.display = 'none';
-        }, 500);
+
+      } catch (error) {
+        console.error('AI 分析过程出错:', error);
+        this.disabled = false;
+        this.style.opacity = '1';
+        loadingEl.style.display = 'none';
+        contentEl.innerHTML = `<span style="color: #dc3545;">❌ 错误: ${error.message}</span>`;
       }
     });
+  }
+
+  // Basic Markdown Parser (修复缩进列表问题)
+  function parseMarkdown(text) {
+    if (!text) return '';
+
+    let html = text
+      // Replace newlines with <br>
+      .replace(/\n/g, '<br>')
+      // Bold: **text** -> <b>text</b>
+      .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+      // Headers: ### Header -> <h3>Header</h3>
+      .replace(/###\s(.*?)(<br>|$)/g, '<h3 style="margin: 10px 0 5px; font-size:14px; color:#333;">$1</h3>')
+      // Headers: #### Header -> <h4>Header</h4>
+      .replace(/####\s(.*?)(<br>|$)/g, '<h4 style="margin: 8px 0 4px; font-size:13px; color:#555;">$1</h4>')
+      // Bullet points with - (allow leading whitespace): - item -> • item
+      .replace(/(<br>|^)(\s*)-\s(.*?)(<br>|$)/g, '$1$2• $3$4')
+      // Bullet points with * (allow leading whitespace): * item -> • item
+      .replace(/(<br>|^)(\s*)\*\s(.*?)(<br>|$)/g, '$1$2• $3$4')
+      // Numbered list: 1. item (keep number, just style it)
+      .replace(/(<br>|^)(\s*)(\d+)\.\s(.*?)(<br>|$)/g, '$1$2<b>$3.</b> $4$5')
+      // Blockquotes: > text -> <blockquote>text</blockquote>
+      .replace(/>([^<].*?)(<br>|$)/g, '<blockquote style="border-left: 3px solid #ddd; margin: 5px 0; padding-left: 10px; color: #666;">$1</blockquote>');
+
+    return html;
   }
 
   // 烟花效果函数
@@ -5512,16 +5688,16 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
     const buttonRect = button.getBoundingClientRect();
     const centerX = buttonRect.left + buttonRect.width / 2;
     const centerY = buttonRect.top + buttonRect.height / 2;
-    
+
     const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffa500'];
     const particleCount = 50;
-    
+
     for (let i = 0; i < particleCount; i++) {
       const particle = document.createElement('div');
       const angle = (Math.PI * 2 * i) / particleCount;
       const velocity = 50 + Math.random() * 100;
       const color = colors[Math.floor(Math.random() * colors.length)];
-      
+
       particle.style.position = 'fixed';
       particle.style.left = centerX + 'px';
       particle.style.top = centerY + 'px';
@@ -5532,12 +5708,12 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
       particle.style.pointerEvents = 'none';
       particle.style.zIndex = '10002';
       particle.style.boxShadow = `0 0 10px ${color}`;
-      
+
       document.body.appendChild(particle);
-      
+
       const x = Math.cos(angle) * velocity;
       const y = Math.sin(angle) * velocity;
-      
+
       particle.animate([
         { transform: 'translate(0, 0) scale(1)', opacity: 1 },
         { transform: `translate(${x}px, ${y}px) scale(0)`, opacity: 0 }
@@ -5551,28 +5727,28 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
   }
 
   // 添加全局函数（updateIssueStatus 已在全局作用域定义）
-  
+
   // 获取问题显示名称（已在全局作用域定义）
-  
+
   // 根据问题状态更新图表 - 定义为全局函数以便 updateIssueStatus 调用
-  window.updateChartBasedOnIssues = function() {
+  window.updateChartBasedOnIssues = function () {
     const issues = window.audioAnalysisIssues || {};
-    
+
     console.log('🔄 updateChartBasedOnIssues 被调用，当前状态:', issues);
-    
+
     // 更新图表标题以反映问题状态
     updateChartTitle(issues);
-    
+
     // 根据问题状态调整图表样式
     adjustChartStyles(issues);
-    
+
     // 更新统计信息显示
     updateStatisticsDisplay(issues);
-    
+
     // 检查是否需要显示选择提示
     const hasActiveIssues = Object.values(issues).some(checked => checked);
     console.log('📊 是否有激活的问题:', hasActiveIssues);
-    
+
     // 根据是否有勾选的问题来显示/隐藏分析图表
     const scrollableContent = document.querySelector('.combined-audio-analysis-container .scrollable-content');
     if (scrollableContent) {
@@ -5587,34 +5763,34 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
       }
     }
   };
-  
+
   // 更新图表标题
   function updateChartTitle(issues) {
     const header = document.querySelector('.combined-audio-analysis-container .chart-header h3');
     if (header) {
       let title = '📊 音频分析 - AEC Delay, Signal Level & Record Volume';
-      
+
       const activeIssues = Object.entries(issues)
         .filter(([key, value]) => value)
         .map(([key]) => getIssueDisplayName(key));
-      
+
       if (activeIssues.length > 0) {
         title += ` (问题: ${activeIssues.join(', ')})`;
       }
-      
+
       header.textContent = "🎯🎯🎯 分析";
     }
   }
-  
+
   // 调整图表样式
   function adjustChartStyles(issues) {
     // 不再修改画布颜色
     // const chartContainer = document.querySelector('.combined-audio-analysis-container');
     // if (!chartContainer) return;
-    
+
     // 根据问题状态添加相应的 CSS 类
     // chartContainer.classList.remove('has-no-sound', 'has-low-level', 'has-echo');
-    
+
     // if (issues.isNoSound) {
     //   chartContainer.classList.add('has-no-sound');
     // }
@@ -5625,32 +5801,32 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
     //   chartContainer.classList.add('has-echo');
     // }
   }
-  
+
   // 更新统计信息显示
   function updateStatisticsDisplay(issues) {
     // 根据问题类型规则智能高亮相关指标
     const metricRows = document.querySelectorAll('.metric-row');
-    
+
     // 检查是否有任何问题被勾选
     const hasActiveIssues = Object.values(issues).some(checked => checked);
-    
+
     // 调试信息
     console.log('更新统计信息显示:', {
       issues: issues,
       hasActiveIssues: hasActiveIssues,
       metricRowsCount: metricRows.length
     });
-    
+
     metricRows.forEach(metricRow => {
       // 获取 metric 名称
       const metricName = metricRow.dataset.metric;
       if (!metricName) return;
-      
+
       let shouldHighlight = false;
       let highlightColor = '#667eea';
       let highlightBackground = 'white';
       let shouldShow = false; // 默认隐藏所有指标
-      
+
       // 如果有问题被勾选，根据规则表判断是否显示该指标
       if (hasActiveIssues) {
         // 检查当前指标是否与任何勾选的问题类型相关（完全依赖规则表）
@@ -5694,7 +5870,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
           }
         });
       }
-      
+
       // 控制显示/隐藏
       if (shouldShow) {
         console.log('指标显示:', metricName);
@@ -5708,7 +5884,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
         metricRow.style.display = 'none';
         metricRow.style.setProperty('display', 'none', 'important');
       }
-      
+
       // 应用高亮样式
       if (shouldHighlight) {
         metricRow.style.border = `2px solid ${highlightColor}`;
@@ -5720,10 +5896,10 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
         metricRow.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.1)';
       }
     });
-    
+
     // 更新显示状态提示
     updateDisplayStatusMessage(issues, hasActiveIssues);
-    
+
     // 如果没有勾选任何问题，显示选择提示
     if (!hasActiveIssues) {
       showSelectionPrompt();
@@ -5731,11 +5907,11 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
       hideSelectionPrompt();
     }
   }
-  
+
   // 更新显示状态提示
   function updateDisplayStatusMessage(issues, hasActiveIssues) {
     let statusMessage = '';
-    
+
     if (hasActiveIssues) {
       const activeIssues = Object.entries(issues)
         .filter(([key, value]) => value)
@@ -5746,12 +5922,12 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
           }
           return key;
         });
-      
+
       statusMessage = `当前显示与以下问题相关的指标: ${activeIssues.join(', ')}`;
     } else {
       statusMessage = '请选择要分析的问题类型';
     }
-    
+
     // 更新或创建状态提示
     let statusElement = document.querySelector('.issue-status-message');
     if (!statusElement) {
@@ -5767,17 +5943,17 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
         color: #1976d2;
         font-weight: 500;
       `;
-      
+
       // 插入到问题勾选框后面
       const issueCheckboxes = document.querySelector('.issue-checkboxes');
       if (issueCheckboxes && issueCheckboxes.parentNode) {
         issueCheckboxes.parentNode.insertBefore(statusElement, issueCheckboxes.nextSibling);
       }
     }
-    
+
     statusElement.textContent = statusMessage;
   }
-  
+
   // 显示选择问题类型提示
   function showSelectionPrompt() {
     // 隐藏统计信息区域（主图表）
@@ -5789,7 +5965,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
     // 注意：不要在这里隐藏所有指标行
     // 指标行的显示应该由 updateStatisticsDisplay() 函数根据 shouldShow 逻辑控制
     // 当没有勾选任何问题时，updateStatisticsDisplay() 会确保正确显示所有指标
-    
+
     // 创建或显示选择提示
     let promptElement = document.querySelector('.selection-prompt');
     if (!promptElement) {
@@ -5808,7 +5984,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
         border: 2px dashed #dee2e6;
         min-height: 200px;
       `;
-      
+
       promptElement.innerHTML = `
         <div style="font-size: 48px; margin-bottom: 20px; opacity: 0.6;">⬆️</div>
         <h3 style="margin: 0 0 10px 0; color: #495057; font-size: 18px; font-weight: 600;">选择分析问题类型</h3>
@@ -5820,7 +5996,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
           💡 提示：勾选问题类型后，系统会自动过滤显示相关指标
         </div>
       `;
-      
+
       // 插入到滚动内容区域
       const scrollableContent = document.querySelector('.scrollable-content');
       if (scrollableContent) {
@@ -5830,7 +6006,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
       promptElement.style.display = 'flex';
     }
   }
-  
+
   // 隐藏选择问题类型提示
   function hideSelectionPrompt() {
     const promptElement = document.querySelector('.selection-prompt');
@@ -5848,7 +6024,7 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
     // 指标行的显示应该由 updateStatisticsDisplay() 函数根据 shouldShow 逻辑控制
     // 直接设置 display: block 会覆盖 updateStatisticsDisplay() 的判断逻辑
   }
-  
+
   // 从标题中提取指标名称
   function extractMetricNameFromTitle(titleText) {
     if (titleText.includes('AEC Delay')) return 'Audio AEC Delay';
@@ -5858,20 +6034,20 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
     if (titleText.includes('Playout Volume')) return 'A PLAYOUT SIGNAL VOLUME';
     return null;
   }
-  
+
   // 测试规则表匹配功能
-  window.testIssueRules = function() {
+  window.testIssueRules = function () {
     console.log('=== 测试问题类型规则表匹配 ===');
-    
+
     const testCases = [
       { issueType: 'isNoSound', expectedMetrics: ['Audio Signal Level Nearin', 'Audio Signal Level Nearout', 'A RECORD SIGNAL VOLUME'] },
       { issueType: 'isLowLevel', expectedMetrics: ['Audio Signal Level Nearin', 'Audio Signal Level Nearout', 'A RECORD SIGNAL VOLUME'] },
       { issueType: 'isEcho', expectedMetrics: ['Audio AEC Delay'] }
     ];
-    
+
     testCases.forEach(testCase => {
       console.log(`\n测试问题类型: ${testCase.issueType}`);
-      
+
       if (typeof getMetricsForIssueType === 'function') {
         const actualMetrics = getMetricsForIssueType(testCase.issueType);
         console.log('期望指标:', testCase.expectedMetrics);
@@ -5881,10 +6057,10 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
         console.log('❌ 规则表函数未加载');
       }
     });
-    
+
     console.log('\n=== 测试完成 ===');
   };
-  
+
   window.exportCombinedChartData = () => {
     const csvData = [
       '时间戳,AEC Delay(ms),Signal Level,Record Volume,问题状态',
@@ -5899,16 +6075,16 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
         return `${new Date(point.timestamp).toISOString()},${point.value},${signalPoint.value},${recordPoint.value},"${issueInfo}"`;
       })
     ].join('\n');
-    
+
     const csvContent = csvData;
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
-    
+
     const link = document.createElement('a');
     link.href = url;
     link.download = `combined-audio-analysis-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.csv`;
     link.click();
-    
+
     URL.revokeObjectURL(url);
     showNotification('组合音频分析数据已导出', 'success');
   };
@@ -6002,16 +6178,16 @@ function createDataTable(data, containerId = 'dataTable') {
 
   // 过滤有效数据（保留0值）
   const validData = data.filter(point => point.value !== null && point.value !== undefined);
-  
+
   // 创建表格
   const table = document.createElement('table');
   table.className = 'data-table-content';
-  
+
   // 根据不同的容器ID确定表格结构和状态逻辑
   let headerHTML = '';
   let showStatus = true;
   let valueLabel = '';
-  
+
   if (containerId === 'audioPlaybackFrequencyDataTable') {
     // 音频卡顿：只需要【时间】【频率】，不需要【状态】
     headerHTML = `
@@ -6053,28 +6229,28 @@ function createDataTable(data, containerId = 'dataTable') {
     `;
     valueLabel = '延迟 (ms)';
   }
-  
+
   // 表头
   const header = document.createElement('tr');
   header.innerHTML = headerHTML;
   table.appendChild(header);
-  
+
   // 数据行（显示前10条和最后5条）
-  const displayData = validData.length > 15 
+  const displayData = validData.length > 15
     ? [...validData.slice(0, 10), ...validData.slice(-5)]
     : validData;
-  
+
   displayData.forEach((point, index) => {
     const row = document.createElement('tr');
     const time = new Date(point.timestamp).toLocaleTimeString();
     const value = point.value;
-    
+
     let rowHTML = `<td>${time}</td><td>${value}</td>`;
-    
+
     if (showStatus) {
       let status = '';
       let statusClass = '';
-      
+
       if (containerId === 'aecDataTable') {
         // 回声：状态值>48 为高，否则正常
         status = value > 48 ? '高' : '正常';
@@ -6100,14 +6276,14 @@ function createDataTable(data, containerId = 'dataTable') {
         status = value > 100 ? '高' : value > 50 ? '中' : '低';
         statusClass = value > 100 ? 'status-high' : value > 50 ? 'status-medium' : 'status-low';
       }
-      
+
       rowHTML += `<td><span class="status-badge ${statusClass}">${status}</span></td>`;
     }
-    
+
     row.innerHTML = rowHTML;
     table.appendChild(row);
   });
-  
+
   // 如果有省略的数据，添加提示行
   const colCount = showStatus ? 3 : 2;
   if (validData.length > 15) {
@@ -6119,7 +6295,7 @@ function createDataTable(data, containerId = 'dataTable') {
     `;
     table.appendChild(ellipsisRow);
   }
-  
+
   tableContainer.innerHTML = '';
   tableContainer.appendChild(table);
 }
@@ -6135,12 +6311,12 @@ function injectAutoCheckButton() {
   try {
     // 查找所有info_right元素
     const infoRightElements = document.querySelectorAll('.info_right');
-    
+
     // 为每个info_right元素添加按钮
     infoRightElements.forEach((infoRight, index) => {
       injectButtonToInfoRight(infoRight, index);
     });
-    
+
   } catch (error) {
     console.error('注入Auto Check按钮失败:', error);
   }
@@ -6155,25 +6331,25 @@ function injectButtonToInfoRight(infoRight, index) {
       console.log(`info_right[${index}] 中Auto Check按钮已存在，跳过添加`);
       return;
     }
-    
+
     // 查找voqa容器（根据HTML结构）
     const voqa = infoRight.querySelector('.voqa');
     if (voqa) {
       // 在voqa容器后添加Auto Check按钮
       const button = createAutoCheckButton();
       button.setAttribute('data-info-right-index', index);
-      
+
       // 创建按钮容器
       const buttonContainer = document.createElement('div');
       buttonContainer.className = 'btn-group auto-check-container';
       buttonContainer.setAttribute('data-info-right-index', index);
       buttonContainer.appendChild(button);
-      
+
       // 添加到voqa后面
       voqa.parentNode.insertBefore(buttonContainer, voqa.nextSibling);
-      
+
       console.log(`Auto Check按钮已成功添加到info_right[${index}]区域`);
-      
+
       // 按钮添加后，延迟查找并打印 sids 值
       setTimeout(() => {
         findAndPrintSidsValues();
@@ -6182,21 +6358,21 @@ function injectButtonToInfoRight(infoRight, index) {
       // 如果没有找到voqa，直接在info_right末尾添加
       const button = createAutoCheckButton();
       button.setAttribute('data-info-right-index', index);
-      
+
       const buttonContainer = document.createElement('div');
       buttonContainer.className = 'btn-group auto-check-container';
       buttonContainer.setAttribute('data-info-right-index', index);
       buttonContainer.appendChild(button);
-      
+
       infoRight.appendChild(buttonContainer);
       console.log(`Auto Check按钮已添加到info_right[${index}]区域末尾`);
-      
+
       // 按钮添加后，延迟查找并打印 sids 值
       setTimeout(() => {
         findAndPrintSidsValues();
       }, 500);
     }
-    
+
   } catch (error) {
     console.error(`为info_right[${index}]注入按钮失败:`, error);
   }
@@ -6237,83 +6413,83 @@ function findAndPrintSidsValues() {
   try {
     // 查找所有 auto-check 按钮
     const autoCheckButtons = document.querySelectorAll('.auto-check-btn');
-    
+
     if (autoCheckButtons.length === 0) {
       console.log('未找到 auto-check 按钮');
       return;
     }
-    
+
     console.log(`找到 ${autoCheckButtons.length} 个 auto-check 按钮`);
-    
+
     autoCheckButtons.forEach((button, buttonIndex) => {
       // 向上查找 counter-view div
       const counterView = button.closest('.counter-view');
-      
+
       if (!counterView) {
         console.log(`按钮[${buttonIndex}]: 未找到 counter-view div`);
         return;
       }
-      
+
       // 在 counter-view div 中查找所有 class = sids 的元素
       const sidsElements = counterView.querySelectorAll('.sids');
-      
+
       if (sidsElements.length === 0) {
         console.log(`按钮[${buttonIndex}]: 在 counter-view 中未找到 class=sids 的元素`);
         return;
       }
-      
+
       console.log(`按钮[${buttonIndex}]: 找到 ${sidsElements.length} 个 sids 元素`);
-      
+
       // 遍历每个 sids 元素，查找其中的 span
       sidsElements.forEach((sidsElement, sidsIndex) => {
         const spans = sidsElement.querySelectorAll('span');
-        
+
         if (spans.length === 0) {
           console.log(`  按钮[${buttonIndex}] -> sids[${sidsIndex}]: 未找到 span 元素`);
         } else {
           spans.forEach((span, spanIndex) => {
             const spanValue = span.textContent || span.innerText || '';
             console.log(`  按钮[${buttonIndex}] -> counter-view -> sids[${sidsIndex}] -> span[${spanIndex}]: "${spanValue}"`);
-          // INSERT_YOUR_CODE
-          // 使用 dataUtil 保存 span[1] trim 的值，避免重复保存
-          if (spanIndex === 1) {
-            const span1Value = spanValue.trim();
-            if (!window._savedSpan1Values) {
-              window._savedSpan1Values = new Set();
-            }
-            if (!window._savedSpan1Values.has(span1Value)) {
-              window._savedSpan1Values.add(span1Value);
-              // 异步加载 dataUtil 模块并保存
-              (async () => {
-                try {
-                  const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
-                  if (dataUtil && typeof dataUtil.saveSid === 'function') {
-                    dataUtil.saveSid(span1Value);
-                    console.log(`[content.js] 已保存 span[1] 的值: "${span1Value}"`);
-                  } else {
-                    // 如果模块导出中没有 saveSid，尝试使用 window.dataUtil
+            // INSERT_YOUR_CODE
+            // 使用 dataUtil 保存 span[1] trim 的值，避免重复保存
+            if (spanIndex === 1) {
+              const span1Value = spanValue.trim();
+              if (!window._savedSpan1Values) {
+                window._savedSpan1Values = new Set();
+              }
+              if (!window._savedSpan1Values.has(span1Value)) {
+                window._savedSpan1Values.add(span1Value);
+                // 异步加载 dataUtil 模块并保存
+                (async () => {
+                  try {
+                    const dataUtil = await import(chrome.runtime.getURL('src/data-util.js'));
+                    if (dataUtil && typeof dataUtil.saveSid === 'function') {
+                      dataUtil.saveSid(span1Value);
+                      console.log(`[content.js] 已保存 span[1] 的值: "${span1Value}"`);
+                    } else {
+                      // 如果模块导出中没有 saveSid，尝试使用 window.dataUtil
+                      if (window.dataUtil && typeof window.dataUtil.saveSid === 'function') {
+                        window.dataUtil.saveSid(span1Value);
+                        console.log(`[content.js] 已保存 span[1] 的值: "${span1Value}"`);
+                      } else {
+                        console.warn('[content.js] dataUtil.saveSid 方法不可用，无法保存:', span1Value);
+                      }
+                    }
+                  } catch (error) {
+                    console.error('[content.js] 加载 dataUtil 模块失败:', error);
+                    // 降级方案：尝试使用 window.dataUtil
                     if (window.dataUtil && typeof window.dataUtil.saveSid === 'function') {
                       window.dataUtil.saveSid(span1Value);
-                      console.log(`[content.js] 已保存 span[1] 的值: "${span1Value}"`);
+                      console.log(`[content.js] 已保存 span[1] 的值（使用 window.dataUtil）: "${span1Value}"`);
                     } else {
                       console.warn('[content.js] dataUtil.saveSid 方法不可用，无法保存:', span1Value);
                     }
                   }
-                } catch (error) {
-                  console.error('[content.js] 加载 dataUtil 模块失败:', error);
-                  // 降级方案：尝试使用 window.dataUtil
-                  if (window.dataUtil && typeof window.dataUtil.saveSid === 'function') {
-                    window.dataUtil.saveSid(span1Value);
-                    console.log(`[content.js] 已保存 span[1] 的值（使用 window.dataUtil）: "${span1Value}"`);
-                  } else {
-                    console.warn('[content.js] dataUtil.saveSid 方法不可用，无法保存:', span1Value);
-                  }
-                }
-              })();
-            } else {
-              console.log(`[content.js] span[1] 的值 "${span1Value}" 已保存过，跳过`);
+                })();
+              } else {
+                console.log(`[content.js] span[1] 的值 "${span1Value}" 已保存过，跳过`);
+              }
             }
-          }
           });
         }
       });
@@ -6347,7 +6523,7 @@ if (document.readyState === 'loading') {
     injectAutoCheckButton();
     // 启动网络监听
     monitorNetworkRequests();
-    
+
     // 延迟执行，确保 DOM 完全加载
     setTimeout(() => {
       findAndPrintSidsValues();
@@ -6380,7 +6556,7 @@ if (document.readyState === 'loading') {
   injectAutoCheckButton();
   // 启动网络监听
   monitorNetworkRequests();
-  
+
   // 延迟执行，确保 DOM 完全加载
   setTimeout(() => {
     findAndPrintSidsValues();
@@ -6394,11 +6570,11 @@ if (document.readyState === 'loading') {
 // 监听来自 popup 或 background 的消息
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log('📨 Content Script: 收到消息', message.type, '来自', sender);
-  
+
   if (message.type === 'ENABLE_AUTO_CHECK_BUTTONS') {
     console.log('📨 Content Script: 收到启用 auto-check 按钮的消息');
     console.log('📨 Content Script: 消息来源:', sender);
-    
+
     try {
       enableAutoCheckButtons();
       console.log('✅ Content Script: 已启用所有 auto-check 按钮');
@@ -6409,22 +6585,22 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     return true; // 保持消息通道开放
   }
-  
+
   console.log('⚠️ Content Script: 未处理的消息类型:', message.type);
   return false; // 不处理其他消息类型
 });
 
 // 监听所有 close-chart 按钮的点击事件，点击时启用所有 auto-check 按钮
-document.addEventListener('click', function(event) {
+document.addEventListener('click', function (event) {
   // 检查点击的元素是否是 close-chart 按钮或其子元素
   const closeChartButton = event.target.closest('.close-chart');
   if (closeChartButton) {
     console.log('🔘 Content Script: close-chart 按钮被点击');
     console.log('🔘 Content Script: 准备启用所有 auto-check 按钮');
-    
+
     // 启用所有 auto-check 按钮
     enableAutoCheckButtons();
-    
+
     console.log('✅ Content Script: 已启用所有 auto-check 按钮（通过 close-chart 点击）');
     window.audioAnalysisIssues = {
       isErrorCode: false,
@@ -6434,7 +6610,7 @@ document.addEventListener('click', function(event) {
       isAudioStutter: false,
       isBlack: false
     };
-    
+
   }
 }, true); // 使用捕获阶段，确保在 onclick 内联事件之前执行
 
@@ -6443,7 +6619,7 @@ document.addEventListener('click', function(event) {
 let __autoCheckDebounceTimer = null;
 const observer = new MutationObserver((mutations) => {
   let shouldRecheck = false;
-  
+
   mutations.forEach((mutation) => {
     if (mutation.type === 'childList') {
       mutation.addedNodes.forEach((node) => {
@@ -6458,7 +6634,7 @@ const observer = new MutationObserver((mutations) => {
       });
     }
   });
-  
+
   // 如果有新的info_right元素添加，重新检查并注入按钮（去抖）
   if (shouldRecheck) {
     if (__autoCheckDebounceTimer) {
@@ -6474,14 +6650,14 @@ const observer = new MutationObserver((mutations) => {
 // 检查并注入新按钮
 function checkAndInjectNewButtons() {
   const allInfoRightElements = document.querySelectorAll('.info_right');
-  
+
   allInfoRightElements.forEach((infoRight, index) => {
     // 检查是否已经有按钮
     const existingButton = infoRight.querySelector('.auto-check-btn');
     if (!existingButton) {
       console.log(`发现新的info_right[${index}]，准备添加按钮`);
       injectButtonToInfoRight(infoRight, index);
-      
+
       // 按钮注入后，延迟查找并打印 sids 值
       setTimeout(() => {
         findAndPrintSidsValues();

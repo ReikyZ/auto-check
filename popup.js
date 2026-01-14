@@ -1,6 +1,6 @@
 // Popup页面的JavaScript逻辑
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
   // 获取页面元素
   const pageStatusEl = document.getElementById('pageStatus');
   const buttonStatusEl = document.getElementById('buttonStatus');
@@ -13,36 +13,66 @@ document.addEventListener('DOMContentLoaded', function() {
   updateStatus();
 
   // 手动执行检查按钮
-  manualCheckBtn.addEventListener('click', function() {
+  manualCheckBtn.addEventListener('click', function () {
     executeManualCheck();
   });
 
   // 刷新状态按钮
-  refreshStatusBtn.addEventListener('click', function() {
+  refreshStatusBtn.addEventListener('click', function () {
     updateStatus();
   });
 
-  // 打开选项页面按钮
-  openOptionsBtn.addEventListener('click', function() {
-    chrome.runtime.openOptionsPage();
+  // 打开选项页面按钮 (改为切换显示设置面板)
+  openOptionsBtn.addEventListener('click', function () {
+    const settingsPanel = document.getElementById('settingsPanel');
+    if (settingsPanel.style.display === 'none') {
+      settingsPanel.style.display = 'block';
+      // 加载当前设置
+      chrome.storage.local.get(['ai_analysis_server_url'], (result) => {
+        if (result.ai_analysis_server_url) {
+          document.getElementById('serverUrl').value = result.ai_analysis_server_url;
+        } else {
+          // 默认值 (Base URL)
+          document.getElementById('serverUrl').value = 'http://10.80.0.69:3000';
+        }
+      });
+    } else {
+      settingsPanel.style.display = 'none';
+    }
   });
+
+  // 保存设置按钮
+  const saveSettingsBtn = document.getElementById('saveSettings');
+  if (saveSettingsBtn) {
+    saveSettingsBtn.addEventListener('click', function () {
+      const url = document.getElementById('serverUrl').value.trim();
+      if (url) {
+        chrome.storage.local.set({ ai_analysis_server_url: url }, () => {
+          showMessage('设置已保存', 'success');
+          document.getElementById('settingsPanel').style.display = 'none';
+        });
+      } else {
+        showMessage('请输入有效的 URL', 'error');
+      }
+    });
+  }
 
   // 更新状态信息
   async function updateStatus() {
     try {
       // 获取当前活动标签页
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      
+
       if (tab) {
         pageStatusEl.textContent = '已加载';
         pageStatusEl.style.background = 'rgba(76, 175, 80, 0.3)';
-        
+
         // 检查页面上是否有Auto Check按钮
         const results = await chrome.scripting.executeScript({
           target: { tabId: tab.id },
           function: checkButtonExists
         });
-        
+
         if (results && results[0] && results[0].result) {
           buttonStatusEl.textContent = '已注入';
           buttonStatusEl.style.background = 'rgba(76, 175, 80, 0.3)';
@@ -50,11 +80,11 @@ document.addEventListener('DOMContentLoaded', function() {
           buttonStatusEl.textContent = '未找到';
           buttonStatusEl.style.background = 'rgba(244, 67, 54, 0.3)';
         }
-        
+
         // 获取检查次数（从localStorage）
         const checkCount = await getCheckCount();
         checkCountEl.textContent = checkCount.toString();
-        
+
       } else {
         pageStatusEl.textContent = '无活动页面';
         pageStatusEl.style.background = 'rgba(244, 67, 54, 0.3)';
@@ -70,19 +100,19 @@ document.addEventListener('DOMContentLoaded', function() {
   async function executeManualCheck() {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      
+
       if (tab) {
         // 在页面上执行自动检查
         const results = await chrome.scripting.executeScript({
           target: { tabId: tab.id },
           function: performAutoCheckFromPopup
         });
-        
+
         if (results && results[0] && results[0].result) {
           // 更新检查次数
           const newCount = await incrementCheckCount();
           checkCountEl.textContent = newCount.toString();
-          
+
           // 显示成功消息
           showMessage('手动检查执行成功！', 'success');
         } else {
@@ -144,14 +174,14 @@ document.addEventListener('DOMContentLoaded', function() {
       opacity: 0;
       transition: opacity 0.3s ease;
     `;
-    
+
     document.body.appendChild(messageEl);
-    
+
     // 显示动画
     setTimeout(() => {
       messageEl.style.opacity = '1';
     }, 100);
-    
+
     // 3秒后移除
     setTimeout(() => {
       messageEl.style.opacity = '0';
