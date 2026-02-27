@@ -42,6 +42,18 @@ export const AUDIO_METRICS_CONFIG = {
     description: '音频输出信号强度',
     thresholds: { low: 30, medium: 60, high: 90 }
   },
+  'SIGNAL_LEVEL_FARIN': {
+    name: 'Audio Signal Level Farin',
+    displayName: '📊 Audio Signal Level Farin 统计',
+    counterId: 7,
+    color: '#4caf50',
+    backgroundColor: 'linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)',
+    borderColor: '#4caf50',
+    icon: '📊',
+    unit: 'dB',
+    description: '远端音频输入信号强度',
+    thresholds: { low: 30, medium: 60, high: 90 }
+  },
   'RECORD_VOLUME': {
     name: 'A RECORD SIGNAL VOLUME',
     displayName: '🎵 A RECORD SIGNAL VOLUME 统计',
@@ -155,6 +167,11 @@ export const generateMockMetricData = (metricName, dataPoints = 50) => {
       variation = 15;
       break;
     case 'AUDIO SIGNAL LEVEL NEAROUT':
+      valueRange = [10, 100];
+      baseValue = 60;
+      variation = 15;
+      break;
+    case 'AUDIO SIGNAL LEVEL FARIN':
       valueRange = [10, 100];
       baseValue = 60;
       variation = 15;
@@ -277,6 +294,8 @@ export const getMetricThreshold = (metricName) => {
       return 5;  // Signal Level 变化阈值
     case 'AUDIO SIGNAL LEVEL NEAROUT':
       return 5;  // Signal Level Nearout 变化阈值
+    case 'AUDIO SIGNAL LEVEL FARIN':
+      return 5;  // Signal Level Farin 变化阈值
     case 'A RECORD SIGNAL VOLUME':
       return 8;  // Record Volume 变化阈值
     case 'A PLAYOUT SIGNAL VOLUME':

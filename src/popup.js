@@ -129,6 +129,7 @@ document.addEventListener('DOMContentLoaded', function() {
       'Audio AEC Delay',
       'Audio Signal Level Nearin',
       'Audio Signal Level Nearout',
+      'Audio Signal Level Farin',
       'A RECORD SIGNAL VOLUME',
       'A PLAYOUT SIGNAL VOLUME',
       'Chat Engine Error Code',
@@ -184,8 +185,9 @@ document.addEventListener('DOMContentLoaded', function() {
   function getMetricDescription(metric) {
     const descriptions = {
       'Audio AEC Delay': '音频回声消除延迟检测',
-      'Audio Signal Level Nearin': '音频信号强度检测',
+      'Audio Signal Level Nearin': '音频信号强度检测（近端输入）',
       'Audio Signal Level Nearout': '音频输出信号强度检测',
+      'Audio Signal Level Farin': '音频信号强度检测（远端输入）',
       'A RECORD SIGNAL VOLUME': '录音信号音量检测',
       'A PLAYOUT SIGNAL VOLUME': '播放信号音量检测',
       'Chat Engine Error Code': '聊天引擎错误码分析',

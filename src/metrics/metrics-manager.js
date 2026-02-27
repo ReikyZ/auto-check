@@ -71,6 +71,8 @@ class MetricsManager {
         return window.SignalLevelMetrics.getAudioSignalLevelNearinData(responseText);
       case 'Audio Signal Level Nearout':
         return window.SignalLevelMetrics.getAudioSignalLevelNearoutData(responseText);
+      case 'Audio Signal Level Farin':
+        return window.SignalLevelMetrics.getAudioSignalLevelFarinData(responseText);
       case 'A RECORD SIGNAL VOLUME':
         return window.RecordVolumeMetrics.getARecordSignalVolumeData(responseText);
       case 'A PLAYOUT SIGNAL VOLUME':
@@ -128,6 +130,8 @@ class MetricsManager {
         return window.SignalLevelMetrics.createSignalLevelChart(data);
       case 'Audio Signal Level Nearout':
         return window.SignalLevelMetrics.createSignalLevelNearoutChart(data);
+      case 'Audio Signal Level Farin':
+        return window.SignalLevelMetrics.createSignalLevelFarinChart(data);
       case 'A RECORD SIGNAL VOLUME':
         return window.RecordVolumeMetrics.createRecordVolumeChart(data);
       case 'A PLAYOUT SIGNAL VOLUME':
@@ -174,6 +178,7 @@ window.metricsManager = new MetricsManager();
 window.getAecDelayData = (responseText) => window.metricsManager.getMetricData('Audio AEC Delay', responseText);
 window.getAudioSignalLevelNearinData = (responseText) => window.metricsManager.getMetricData('Audio Signal Level Nearin', responseText);
 window.getAudioSignalLevelNearoutData = (responseText) => window.metricsManager.getMetricData('Audio Signal Level Nearout', responseText);
+window.getAudioSignalLevelFarinData = (responseText) => window.metricsManager.getMetricData('Audio Signal Level Farin', responseText);
 window.getARecordSignalVolumeData = (responseText) => window.metricsManager.getMetricData('A RECORD SIGNAL VOLUME', responseText);
 window.getAPlayoutSignalVolumeData = (responseText) => window.metricsManager.getMetricData('A PLAYOUT SIGNAL VOLUME', responseText);
 window.getChatEngineErrorData = (responseText) => window.metricsManager.getMetricData('Chat Engine Error Code', responseText);
@@ -181,6 +186,7 @@ window.getChatEngineErrorData = (responseText) => window.metricsManager.getMetri
 window.generateMockAecDelayData = () => window.metricsManager.generateMockData('Audio AEC Delay');
 window.generateMockAudioSignalLevelNearinData = () => window.metricsManager.generateMockData('Audio Signal Level Nearin');
 window.generateMockAudioSignalLevelNearoutData = () => window.metricsManager.generateMockData('Audio Signal Level Nearout');
+window.generateMockAudioSignalLevelFarinData = () => window.metricsManager.generateMockData('Audio Signal Level Farin');
 window.generateMockARecordSignalVolumeData = () => window.metricsManager.generateMockData('A RECORD SIGNAL VOLUME');
 window.generateMockAPlayoutSignalVolumeData = () => window.metricsManager.generateMockData('A PLAYOUT SIGNAL VOLUME');
 
@@ -190,6 +196,7 @@ window.showAecDelayChart = (data) => window.metricsManager.createChart('Audio AE
 window.createAecDelayChart = (data) => window.metricsManager.createChart('Audio AEC Delay', data);
 window.createSignalLevelChart = (data) => window.metricsManager.createChart('Audio Signal Level Nearin', data);
 window.createSignalLevelNearoutChart = (data) => window.metricsManager.createChart('Audio Signal Level Nearout', data);
+window.createSignalLevelFarinChart = (data) => window.metricsManager.createChart('Audio Signal Level Farin', data);
 window.createRecordVolumeChart = (data) => window.metricsManager.createChart('A RECORD SIGNAL VOLUME', data);
 window.createPlayoutVolumeChart = (data) => window.metricsManager.createChart('A PLAYOUT SIGNAL VOLUME', data);
 window.createCombinedChart = (aecDelayData, signalLevelData, recordVolumeData) => window.metricsManager.createCombinedChart(aecDelayData, signalLevelData, recordVolumeData);
