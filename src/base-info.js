@@ -781,6 +781,102 @@ export const getAudioProfileDisplayText = (audioProfileValues) => {
 };
 
 /**
+ * AUDIO_ROUTE 枚举映射
+ */
+const AUDIO_ROUTE_MAP = {
+  '-1': 'DEFAULT',
+  0: 'Headset',
+  1: 'Earpiece',
+  2: 'Headset No Mic',
+  3: 'Speakerphone',
+  4: 'Loudspeaker',
+  5: 'Bluetooth HFP',
+  6: 'USB Device',
+  7: 'HDMI',
+  8: 'USB Headset',
+  10: 'Bluetooth A2DP'
+};
+
+/**
+ * 获取 Audio Output Route 值
+ * @param {string} responseText - 响应文本
+ * @returns {Array|null} audio route 值数组
+ */
+export const getAudioOutputRoute = (responseText) => {
+  if (!responseText || typeof responseText !== 'string') {
+    console.warn('getAudioOutputRoute: responseText 不是有效的字符串');
+    return null;
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(responseText);
+  } catch (e) {
+    console.warn('getAudioOutputRoute: responseText 不是有效的 JSON');
+    return null;
+  }
+
+  const values = [];
+
+  // 遍历数据结构查找 "Audio Output Route Enum"
+  for (const item of Array.isArray(parsed) ? parsed : []) {
+    if (item && Array.isArray(item.data)) {
+      for (const counter of item.data) {
+        if (
+          counter &&
+          typeof counter.name === 'string' &&
+          counter.name.trim() === 'Audio Output Route Enum' &&
+          Array.isArray(counter.data)
+        ) {
+          // 收集所有非null、非undefined的值
+          for (let i = 0; i < counter.data.length; i++) {
+            const dataItem = counter.data[i];
+            const value = Array.isArray(dataItem) ? dataItem[1] : dataItem;
+            if (value !== null && value !== undefined) {
+              values.push(value);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (values.length === 0) {
+    console.warn('未找到 Audio Output Route Enum 数据');
+    return null;
+  }
+
+  return values;
+};
+
+/**
+ * 获取 Audio Output Route 显示文本
+ * @param {Array} audioRouteValues - audio route 值数组
+ * @returns {string} audio route 显示文本
+ */
+export const getAudioOutputRouteDisplayText = (audioRouteValues) => {
+  if (!audioRouteValues || !Array.isArray(audioRouteValues) || audioRouteValues.length === 0) {
+    return '未知';
+  }
+
+  // 去重
+  const uniqueValues = [...new Set(audioRouteValues)];
+  const routeNames = uniqueValues.map(value => {
+    const name = AUDIO_ROUTE_MAP[value];
+    return name !== undefined ? name : `未知(${value})`;
+  });
+
+  let displayText = routeNames.join(' → ');
+
+  // 检查是否有多个不同的值（表示有变化）
+  if (uniqueValues.length > 1) {
+    displayText += ' (有变化)';
+  }
+
+  return displayText;
+};
+
+/**
  * 获取 Video Profile 信息
  * @param {string|Array} eventsData - events 数据（JSON 字符串或已解析的数组）
  * @returns {Object|null} VideoProfile 信息对象，如果未找到则返回 null
@@ -1471,6 +1567,9 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
   // 提取 audio profile 信息（返回数组）
   const audioProfileValues = getAudioProfile(responseText);
 
+  // 提取 audio output route 信息（返回数组）
+  const audioOutputRouteValues = getAudioOutputRoute(responseText);
+
   // 检查用户权限（从 events 数据中获取）
   const privilegesText = eventsData ? checkPrivileges(eventsData) : null;
 
@@ -1522,6 +1621,11 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
     baseInfoHTML += `<div class="info-item">${muteIcon} ${muteText}</div>`;
   } else {
     baseInfoHTML += '<div class="info-item">⚠️ 未找到 mute 状态信息</div>';
+  }
+
+  if (audioOutputRouteValues !== null) {
+    const audioRouteText = getAudioOutputRouteDisplayText(audioOutputRouteValues);
+    baseInfoHTML += `<div class="info-item">🔊 音频路由: ${audioRouteText}</div>`;
   }
 
   if (audioProfileValues !== null) {
@@ -2042,6 +2146,8 @@ if (typeof window !== 'undefined') {
   window.getMuteStatusDisplayText = getMuteStatusDisplayText;
   window.getAudioProfile = getAudioProfile;
   window.getAudioProfileDisplayText = getAudioProfileDisplayText;
+  window.getAudioOutputRoute = getAudioOutputRoute;
+  window.getAudioOutputRouteDisplayText = getAudioOutputRouteDisplayText;
   window.getVideoProfile = getVideoProfile;
   window.getVideoProfileDisplayText = getVideoProfileDisplayText;
   window.getCameraInfo = getCameraInfo;
