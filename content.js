@@ -247,6 +247,10 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
   }
 }
 
+// 全局语言和时区设置
+window.autoCheckLang = 'zh'; // 默认中文
+window.autoCheckTimezone = 'local'; // 默认本地时区
+
 // 全局函数定义 - 确保在任何其他代码之前定义
 window.updateIssueStatus = async function (issueType, isChecked) {
   console.log('updateIssueStatus called:', issueType, isChecked);
@@ -3319,6 +3323,18 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalL
     chartContainer.innerHTML = `
       <div class="chart-header">
         <h3> 🎯🎯🎯 分析</h3>
+        <div class="chart-controls">
+          <label class="switch-label">
+            <span class="switch-text">En</span>
+            <input type="checkbox" class="lang-switch" id="langSwitch">
+            <span class="switch-text">中</span>
+          </label>
+          <label class="switch-label">
+            <span class="switch-text">Local</span>
+            <input type="checkbox" class="timezone-switch" id="timezoneSwitch">
+            <span class="switch-text">UTC</span>
+          </label>
+        </div>
         <button class="close-chart" onclick="this.parentElement.parentElement.remove()">×</button>
       </div>
       <div class="chart-content">
@@ -3620,10 +3636,78 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalL
       
       .combined-audio-analysis-container .chart-header h3 {
         margin: 0;
+        margin-right: auto;
         font-size: 18px;
         font-weight: 600;
       }
-      
+
+      .combined-audio-analysis-container .chart-controls {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-left: auto;
+        margin-right: 100px;
+      }
+
+      .combined-audio-analysis-container .switch-label {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        transform: translateY(5px) translateX(-50px);
+        font-size: 12px;
+      }
+
+      .combined-audio-analysis-container .switch-label .switch-text {
+        color: rgba(255, 255, 255, 0.7);
+        transition: color 0.2s;
+      }
+
+      .combined-audio-analysis-container .switch-label input[type="checkbox"] {
+        appearance: none;
+        width: 36px;
+        height: 20px;
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 10px;
+        position: relative;
+        cursor: pointer;
+        margin: 0 6px;
+        transition: background 0.2s;
+      }
+
+      .combined-audio-analysis-container .switch-label input[type="checkbox"]:checked {
+        background: rgba(255, 255, 255, 0.8);
+      }
+
+      .combined-audio-analysis-container .switch-label input[type="checkbox"]::before {
+        content: '';
+        position: absolute;
+        width: 16px;
+        height: 16px;
+        background: white;
+        border-radius: 50%;
+        top: 2px;
+        left: 2px;
+        transition: transform 0.2s;
+      }
+
+      .combined-audio-analysis-container .switch-label input[type="checkbox"]:checked::before {
+        transform: translateX(16px);
+      }
+
+      .combined-audio-analysis-container .switch-label input[type="checkbox"]:checked + .switch-text {
+        color: white;
+        font-weight: 600;
+      }
+
+      .combined-audio-analysis-container .switch-label .switch-text:last-child {
+        color: rgba(255, 255, 255, 0.7);
+      }
+
+      .combined-audio-analysis-container .switch-label input[type="checkbox"]:checked ~ .switch-text:last-child {
+        color: white;
+        font-weight: 600;
+      }
+
       .combined-audio-analysis-container .close-chart {
         background: none;
         border: none;
@@ -4257,7 +4341,59 @@ function createCombinedAudioAnalysisChart(aecDelayData, signalLevelData, signalL
     document.head.appendChild(style);
 
     document.body.appendChild(chartContainer);
-    
+
+    // 初始化语言和时区开关状态
+    const langSwitch = chartContainer.querySelector('.lang-switch');
+    const timezoneSwitch = chartContainer.querySelector('.timezone-switch');
+
+    // 获取保存的语言设置
+    let savedLang = 'zh';
+    if (window.dataUtil && typeof window.dataUtil.getLang === 'function') {
+      const lang = window.dataUtil.getLang();
+      if (lang) savedLang = lang;
+    }
+    window.autoCheckLang = savedLang;
+
+    // 获取保存的时区设置
+    let savedTimezone = 'local';
+    if (window.dataUtil && typeof window.dataUtil.getTimeType === 'function') {
+      const tz = window.dataUtil.getTimeType();
+      if (tz) savedTimezone = tz.toLowerCase();
+    }
+    window.autoCheckTimezone = savedTimezone;
+
+    if (langSwitch) {
+      langSwitch.checked = window.autoCheckLang === 'zh';
+      langSwitch.addEventListener('change', (e) => {
+        const lang = e.target.checked ? 'zh' : 'en';
+        window.autoCheckLang = lang;
+        // 保存语言设置到 dataUtil
+        if (window.dataUtil && typeof window.dataUtil.saveLang === 'function') {
+          window.dataUtil.saveLang(lang);
+        }
+        // 覆盖 cookie 中的 currentLocale
+        document.cookie = 'currentLocale=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        document.cookie = `currentLocale=${lang}; max-age=31536000`;
+        window.dispatchEvent(new CustomEvent('autoCheckLangChange', { detail: { lang: window.autoCheckLang } }));
+      });
+    }
+    if (timezoneSwitch) {
+      timezoneSwitch.checked = window.autoCheckTimezone === 'utc';
+      timezoneSwitch.addEventListener('change', (e) => {
+       
+        const timezone = e.target.checked ? 'utc' : 'local';
+        window.autoCheckTimezone = timezone;
+        // 保存时区设置到 dataUtil
+        if (window.dataUtil && typeof window.dataUtil.saveTimeType === 'function') {
+          window.dataUtil.saveTimeType(timezone === 'utc' ? 'UTC' : 'Local');
+        }
+        // 覆盖 cookie 中的 curTimeType
+        document.cookie = 'curTimeType=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+        document.cookie = `curTimeType=${timezone === 'utc' ? 'UTC' : 'Local'}; max-age=31536000`;
+        window.dispatchEvent(new CustomEvent('autoCheckTimezoneChange', { detail: { timezone: window.autoCheckTimezone } }));
+      });
+    }
+
     // 添加点击外部区域缩小为圆形的功能
     addClickOutsideToShrink(chartContainer);
   }
@@ -4730,6 +4866,18 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
   chartContainer.innerHTML = `
     <div class="chart-header">
       <h3> 🎯🎯🎯 分析</h3>
+      <div class="chart-controls">
+        <label class="switch-label">
+          <span class="switch-text">En</span>
+          <input type="checkbox" class="lang-switch" id="langSwitch">
+          <span class="switch-text">中</span>
+        </label>
+        <label class="switch-label">
+          <span class="switch-text">UTC</span>
+          <input type="checkbox" class="timezone-switch" id="timezoneSwitch">
+          <span class="switch-text">Local</span>
+        </label>
+      </div>
       <button class="close-chart" onclick="this.parentElement.parentElement.remove()">×</button>
     </div>
     <div class="chart-body" style="flex: 1; overflow-y: auto; padding: 0 20px 20px 20px;">
@@ -5145,10 +5293,79 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
       
       .combined-audio-analysis-container .chart-header h3 {
         margin: 0;
+        margin-right: auto;
         font-size: 18px;
         font-weight: 600;
       }
-      
+
+      .combined-audio-analysis-container .chart-controls {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-left: auto;
+        margin-right: 100px;
+      }
+
+      .combined-audio-analysis-container .switch-label {
+        display: flex;
+        align-items: center;
+        cursor: pointer;
+        transform: translateY(5px) translateX(-50px);
+        font-size: 12px;
+        margin-top: 12px;
+      }
+
+      .combined-audio-analysis-container .switch-label .switch-text {
+        color: rgba(255, 255, 255, 0.7);
+        transition: color 0.2s;
+      }
+
+      .combined-audio-analysis-container .switch-label input[type="checkbox"] {
+        appearance: none;
+        width: 36px;
+        height: 20px;
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 10px;
+        position: relative;
+        cursor: pointer;
+        margin: 0 6px;
+        transition: background 0.2s;
+      }
+
+      .combined-audio-analysis-container .switch-label input[type="checkbox"]:checked {
+        background: rgba(255, 255, 255, 0.8);
+      }
+
+      .combined-audio-analysis-container .switch-label input[type="checkbox"]::before {
+        content: '';
+        position: absolute;
+        width: 16px;
+        height: 16px;
+        background: white;
+        border-radius: 50%;
+        top: 2px;
+        left: 2px;
+        transition: transform 0.2s;
+      }
+
+      .combined-audio-analysis-container .switch-label input[type="checkbox"]:checked::before {
+        transform: translateX(16px);
+      }
+
+      .combined-audio-analysis-container .switch-label input[type="checkbox"]:checked + .switch-text {
+        color: white;
+        font-weight: 600;
+      }
+
+      .combined-audio-analysis-container .switch-label .switch-text:last-child {
+        color: rgba(255, 255, 255, 0.7);
+      }
+
+      .combined-audio-analysis-container .switch-label input[type="checkbox"]:checked ~ .switch-text:last-child {
+        color: white;
+        font-weight: 600;
+      }
+
       .combined-audio-analysis-container.fallback-chart .chart-header {
         cursor: move;
         user-select: none;
@@ -5887,7 +6104,60 @@ function createCombinedFallbackChart(aecDelayData, signalLevelData, signalLevelN
   }
 
   document.body.appendChild(chartContainer);
-  
+
+  // 初始化语言和时区开关状态
+  const langSwitch = chartContainer.querySelector('.lang-switch');
+  const timezoneSwitch = chartContainer.querySelector('.timezone-switch');
+
+  // 获取保存的语言设置
+  let savedLang = 'zh';
+  if (window.dataUtil && typeof window.dataUtil.getLang === 'function') {
+    const lang = window.dataUtil.getLang();
+    if (lang) savedLang = lang;
+  }
+  window.autoCheckLang = savedLang;
+
+  // 获取保存的时区设置
+  let savedTimezone = 'local';
+  if (window.dataUtil && typeof window.dataUtil.getTimeType === 'function') {
+    const tz = window.dataUtil.getTimeType();
+    if (tz) savedTimezone = tz.toLowerCase();
+  }
+  window.autoCheckTimezone = savedTimezone;
+
+  if (langSwitch) {
+    langSwitch.checked = window.autoCheckLang === 'zh';
+    langSwitch.addEventListener('change', (e) => {
+      const lang = e.target.checked ? 'zh' : 'en';
+      window.autoCheckLang = lang;
+      // 保存语言设置到 dataUtil
+      if (window.dataUtil && typeof window.dataUtil.saveLang === 'function') {
+        window.dataUtil.saveLang(lang);
+      }
+      // 修改 cookie 中的 currentLocale
+      document.cookie = 'currentLocale=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      document.cookie = `currentLocale=${lang}; max-age=31536000`;
+      window.dispatchEvent(new CustomEvent('autoCheckLangChange', { detail: { lang: window.autoCheckLang } }));
+    });
+  }
+  if (timezoneSwitch) {
+    timezoneSwitch.checked = window.autoCheckTimezone === 'utc';
+    timezoneSwitch.addEventListener('change', (e) => {
+    
+      const timezone = e.target.checked ? 'utc' : 'local';
+         console.log("SSSSSS",timezone)
+      window.autoCheckTimezone = timezone;
+      // 保存时区设置到 dataUtil
+      if (window.dataUtil && typeof window.dataUtil.saveTimeType === 'function') {
+        window.dataUtil.saveTimeType(timezone === 'utc' ? 'UTC' : 'Local');
+      }
+      // 覆盖 cookie 中的 curTimeType
+      document.cookie = 'curTimeType=; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      document.cookie = `curTimeType=${timezone === 'utc' ? 'Local' : 'UTC'}; max-age=31536000`;
+      window.dispatchEvent(new CustomEvent('autoCheckTimezoneChange', { detail: { timezone: window.autoCheckTimezone } }));
+    });
+  }
+
   // 添加点击外部区域缩小为圆形的功能
   addClickOutsideToShrink(chartContainer);
 

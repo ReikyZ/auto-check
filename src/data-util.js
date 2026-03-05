@@ -358,7 +358,6 @@ export function getSids() {
   }
 }
 
-// 如果作为全局脚本加载，暴露到 window 对象
 if (typeof window !== 'undefined') {
   window.dataUtil = {
     saveData,
@@ -369,7 +368,75 @@ if (typeof window !== 'undefined') {
     saveSpanValue,
     getSpanValue,
     saveSid,
-    getSids
+    getSids,
+    saveLang,
+    getLang,
+    saveTimeType,
+    getTimeType
   };
+}
+
+/**
+ * 保存语言设置到 sessionStorage
+ * @param {string} lang - 语言值（如 'en' 或 'zh'）
+ * @returns {boolean} 是否保存成功
+ */
+function saveLang(lang) {
+  try {
+    if (!lang) {
+      console.warn('saveLang: lang 参数不能为空');
+      return false;
+    }
+    sessionStorage.setItem('argus_lang', lang);
+    return true;
+  } catch (error) {
+    console.error('❌ [DataUtil] 保存语言设置失败:', error);
+    return false;
+  }
+}
+
+/**
+ * 获取保存的语言设置
+ * @returns {string|null} 保存的语言值，如果不存在则返回 null
+ */
+function getLang() {
+  try {
+    return sessionStorage.getItem('argus_lang');
+  } catch (error) {
+    console.error('❌ [DataUtil] 获取语言设置失败:', error);
+    return null;
+  }
+}
+
+/**
+ * 保存时区类型设置到 sessionStorage
+ * @param {string} timeType - 时区类型值（如 'Local' 或 'UTC'）
+ * @returns {boolean} 是否保存成功
+ */
+function saveTimeType(timeType) {
+  try {
+    if (!timeType) {
+      console.warn('saveTimeType: timeType 参数不能为空');
+      return false;
+    }
+    sessionStorage.setItem('argus_time_type', timeType);
+    return true;
+  } catch (error) {
+    console.error('❌ [DataUtil] 保存时区设置失败:', error);
+    return false;
+  }
+}
+
+/**
+ * 获取保存的时区类型设置
+ * @returns {string|null} 保存的时区类型值，如果不存在则返回 null
+ */
+function getTimeType() {
+  try {
+    return sessionStorage.getItem('argus_time_type');
+  } catch (error) {
+    console.error('❌ [DataUtil] 获取时区设置失败:', error);
+    return null;
+  }
 }
 
