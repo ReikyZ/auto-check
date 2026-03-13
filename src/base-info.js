@@ -200,7 +200,6 @@ export const getLocalWanIpFromVocs = (eventsData) => {
   }
 
   if (ipSet.size === 0) {
-    console.warn('getLocalWanIpFromVocs: 未找到 vosdk.vocs 事件的 localWanIp 数据');
     return null;
   }
 
@@ -939,7 +938,6 @@ export const getVideoProfile = (eventsData) => {
   }
 
   if (!videoProfile && !videoProfileLow) {
-    console.warn('getVideoProfile: 未找到 VideoProfile 数据');
     return null;
   }
 
@@ -1032,8 +1030,6 @@ export const getCameraInfo = (eventsData) => {
       }
     }
   }
-
-  console.warn('getCameraInfo: 未找到 cameraInfo 数据');
   return null;
 };
 
@@ -1111,7 +1107,7 @@ export const getDeviceStatChange = (eventsData) => {
   }
 
   if (deviceStatChanges.length === 0) {
-    console.warn('getDeviceStatChange: 未找到 DeviceStatChange 数据');
+    console.log('getDeviceStatChange: 未找到 DeviceStatChange 数据');
     return null;
   }
 
@@ -1235,8 +1231,6 @@ export const checkPrivileges = (eventsData) => {
       }
     }
   }
-
-  console.warn(`checkPrivileges: 未找到 vos.userPrivileges 数据，共检查了 ${parsed.length} 个事件，找到 ${foundCount} 个匹配项`);
   return null;
 };
 
@@ -1390,7 +1384,6 @@ export const getAecConfiguration = (responseText) => {
   }
 
   if (values.length === 0) {
-    console.warn('未找到 Aec Configuration 数据');
     return null;
   }
 
@@ -1657,7 +1650,7 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
     console.log('✅ updateBaseInfo: 添加视频 profile 显示:', videoProfileText);
     baseInfoHTML += `<div class="info-item">📹 ${videoProfileText}</div>`;
   } else {
-    console.warn('⚠️ updateBaseInfo: videoProfile 为空，不显示视频 profile');
+    console.log('⚠️ updateBaseInfo: videoProfile 为空，不显示视频 profile');
   }
 
   if (privilegesText !== null) {
@@ -1878,7 +1871,6 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
         console.log('✅ 准备显示悬浮窗');
         showTooltip(event, status);
       } else {
-        console.warn('⚠️ 未找到 AEC Configuration 数据或数据为空');
         showTooltip(event, '未找到 Aec Configuration 数据');
       }
     });
@@ -1983,7 +1975,6 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
         console.log('✅ 准备显示摄像头信息悬浮窗');
         showTooltip(event, cameraInfoText);
       } else {
-        console.warn('⚠️ 未找到摄像头信息或数据为空');
         showTooltip(event, '未找到摄像头信息');
       }
     });
@@ -2060,7 +2051,7 @@ export const updateBaseInfo = (responseText, eventsData = null) => {
         console.log('✅ 准备显示音频设备状态变化悬浮窗');
         showTooltip(event, deviceStatChangeText);
       } else {
-        console.warn('⚠️ 未找到音频设备状态变化信息或数据为空');
+        console.log('⚠️ 未找到音频设备状态变化信息或数据为空');
         showTooltip(event, '未找到音频设备状态变化信息');
       }
     });

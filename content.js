@@ -1433,19 +1433,23 @@ function createAutoCheckButton() {
     // 禁用所有 auto-check 按钮
     disableAutoCheckButtons();
 
-    // 通过 background script 发送 POST 请求到指定 URL（避免 CORS 错误）
-    chrome.runtime.sendMessage({
-      type: 'AUTO_CHECK_CLICK',
-      data: {}
-    }, (response) => {
-      if (chrome.runtime.lastError) {
-        console.error('发送点击事件消息失败:', chrome.runtime.lastError);
-      } else if (response && response.success) {
-        console.log('点击事件 POST 请求成功:', response);
-      } else {
-        console.error('点击事件 POST 请求失败:', response?.error);
-      }
-    });
+    // 通过 background script 发送 POST 请求到避免 CORS 错误）
+    try {
+      chrome.runtime.sendMessage({
+        type: 'AUTO_CHECK_CLICK',
+        data: {}
+      }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error('发送点击事件消息失败:', chrome.runtime.lastError);
+        } else if (response && response.success) {
+          console.log('点击事件 POST 请求成功:', response);
+        } else {
+          console.error('点击事件 POST 请求失败:', response?.error);
+        }
+      });
+    } catch (error) {
+      console.error('扩展上下文已失效，请刷新页面或重新加载扩展:', error);
+    }
 
     // 找到所属的 info_right，然后找到其父节点 user-info
     const infoRight = button.closest('.info_right');
@@ -2435,16 +2439,20 @@ function showUidValuesPopup(uidValues, options = {}) {
 
 // 开始网络请求监听
 function startNetworkMonitoring() {
-  chrome.runtime.sendMessage(
-    { type: 'START_NETWORK_MONITORING' },
-    (response) => {
-      if (response && response.success) {
-        console.log('网络监听启动成功');
-      } else {
-        console.error('网络监听启动失败:', response);
+  try {
+    chrome.runtime.sendMessage(
+      { type: 'START_NETWORK_MONITORING' },
+      (response) => {
+        if (response && response.success) {
+          console.log('网络监听启动成功');
+        } else {
+          console.error('网络监听启动失败:', response);
+        }
       }
-    }
-  );
+    );
+  } catch (error) {
+    console.error('扩展上下文已失效，请刷新页面或重新加载扩展:', error);
+  }
 }
 
 // 监听网络请求并打印包含 counters? 的 URL
@@ -2691,33 +2699,42 @@ function monitorNetworkRequests() {
 
 // 停止网络请求监听
 function stopNetworkMonitoring() {
-  chrome.runtime.sendMessage(
-    { type: 'STOP_NETWORK_MONITORING' },
-    (response) => {
-      if (response && response.success) {
-        console.log('网络监听停止成功');
+  try {
+    chrome.runtime.sendMessage(
+      { type: 'STOP_NETWORK_MONITORING' },
+      (response) => {
+        if (response && response.success) {
+          console.log('网络监听停止成功');
+        }
       }
-    }
-  );
+    );
+  } catch (error) {
+    console.error('扩展上下文已失效，请刷新页面或重新加载扩展:', error);
+  }
 }
 
 // 获取counters数据
 async function getCountersData() {
   return new Promise((resolve) => {
-    chrome.runtime.sendMessage(
-      { type: 'GET_COUNTERS_DATA' },
-      (response) => {
-        if (response && response.success) {
-          console.log('获取到counters数据:', response.counters);
-          displayCountersData(response.counters);
-          resolve(response.counters);
-        } else {
-          console.error('获取counters数据失败:', response);
-          showNotification('未找到counters数据', 'error');
-          resolve([]);
+    try {
+      chrome.runtime.sendMessage(
+        { type: 'GET_COUNTERS_DATA' },
+        (response) => {
+          if (response && response.success) {
+            console.log('获取到counters数据:', response.counters);
+            displayCountersData(response.counters);
+            resolve(response.counters);
+          } else {
+            console.error('获取counters数据失败:', response);
+            showNotification('未找到counters数据', 'error');
+            resolve([]);
+          }
         }
-      }
-    );
+      );
+    } catch (error) {
+      console.error('扩展上下文已失效，请刷新页面或重新加载扩展:', error);
+      resolve([]);
+    }
   });
 }
 
